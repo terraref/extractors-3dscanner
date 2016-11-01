@@ -32,5 +32,3 @@ registrationEndpoints = os.getenv('REGISTRATION_ENDPOINTS', "")
 
 # Dictionary that maps {"remote Clowder source path": "local mounted path"} for streamlining Clowder downloads
 mountedPaths = {"/home/clowder/sites": "/home/extractor/sites"}
-
-outputDir = "/home/extractor/sites/ua-mac/Level_1/scanner3DTop"

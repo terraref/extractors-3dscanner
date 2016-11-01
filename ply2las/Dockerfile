@@ -5,9 +5,6 @@ MAINTAINER Max Burnette <mburnet2@illinois.edu>
 RUN useradd -u 47852 extractor \
     && apt-get -y update \
     && apt-get install -y -q build-essential git python python-dev python-pip python-gdal pdal \
-                             libpng-dev libjpeg8-dev libfreetype6-dev \
-                             libblas-dev liblapack-dev libatlas-base-dev \
-    #&& usr/bin/yes | apt-get build-dep python-matplotlib \
     && rm -rf /var/lib/apt/lists/* \
     && pip install pika requests numpy urllib3 \
     && mkdir /home/extractor \

@@ -4,7 +4,7 @@ This repository contains extractors that process data originating from:
 - 3D Frauhofer top-down height scanner
 
 ### PLY to LAS conversion extractor
-This extractor converts PLY 3D point cloud files into LAS files.
+This extractor converts PLY 3D point cloud files into LAS files. The LAS file will be placed in same directory as PLY file.
 
 _Input_
 

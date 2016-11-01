@@ -1,9 +1,9 @@
 #!/bin/bash
-# this script is called to invoke one instance of flir extractor.
+# this script is called to invoke one instance of ply2las extractor.
 
 # Load necessary modules
 module purge
-module load python/2.7.10 pythonlibs/2.7.10 gdal-stack-2.7.10 gdal
+module load python/2.7.10 pythonlibs/2.7.10 pdal
 
 # Activate python virtualenv
 source /home/mburnet2/extractors/pyenv/bin/activate
