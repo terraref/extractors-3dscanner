@@ -98,12 +98,12 @@ def process_file(parameters):
 
         if not os.path.isfile(out_las):
             # Execute processing on target file
-            subprocess.call(['pdal', 'translate',
-                             '--writers.las.dataformat_id', '0',
-                             '--writers.las.scale_x', ".0000001",
-                             '--writers.las.scale_y', ".0001",
-                             '--writers.las.scale_z', ".000001",
-                             in_ply, out_las])
+            subprocess.call(['pdal translate ' + \
+                             '--writers.las.dataformat_id="0" ' + \
+                             '--writers.las.scale_x=".0000001" ' + \
+                             '--writers.las.scale_y=".0001" ' + \
+                             '--writers.las.scale_z=".000001" ' + \
+                             in_ply + " " + out_las], shell=True)
 
             if os.path.isfile(out_las):
                 # Send LAS output to Clowder source dataset
