@@ -31,7 +31,7 @@ setup(
             'pyclowder'
         ],
 
-        dependency_links=['https://opensource.ncsa.illinois.edu/bitbucket/rest/archive/latest/projects/CATS/repos/pyclowder/archive?format=zip#egg=pyclowder-0.9.2'],
+        dependency_links=['https://opensource.ncsa.illinois.edu/bitbucket/rest/archive/latest/projects/CATS/repos/pyclowder2/archive?format=zip'],
 
         packages=find_packages(),
 
