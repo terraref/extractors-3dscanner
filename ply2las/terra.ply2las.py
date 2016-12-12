@@ -7,84 +7,77 @@ This extractor will trigger when a PLY file is uploaded into Clowder. It will cr
 """
 
 import os
-import imp
 import logging
-import requests
 import subprocess
 
-from config import *
-import pyclowder.extractors as extractors
+from pyclowder.extractors import Extractor
+from pyclowder.utils import CheckMessage
+import pyclowder.files
+import pyclowder.datasets
 
 
-def main():
-    global extractorName, messageType, rabbitmqExchange, rabbitmqURL, registrationEndpoints, mountedPaths
+class Ply2LasConverter(Extractor):
+    def __init__(self):
+        Extractor.__init__(self)
 
-    #set logging
-    logging.basicConfig(format='%(levelname)-7s : %(name)s -  %(message)s', level=logging.WARN)
-    logging.getLogger('pyclowder.extractors').setLevel(logging.INFO)
-    logger = logging.getLogger('extractor')
-    logger.setLevel(logging.DEBUG)
+        # add any additional arguments to parser
+        # self.parser.add_argument('--max', '-m', type=int, nargs='?', default=-1,
+        #                          help='maximum number (default=-1)')
+        self.parser.add_argument('--output', '-o', dest="output_dir", type=str, nargs='?',
+                                 default="/home/extractor/sites/ua-mac/Level_1/netcdf",
+                                 help="root directory where timestamp & output directories will be created")
 
-    # setup
-    extractors.setup(extractorName=extractorName,
-                     messageType=messageType,
-                     rabbitmqURL=rabbitmqURL,
-                     rabbitmqExchange=rabbitmqExchange,
-                     mountedPaths=mountedPaths)
+        # parse command line and load default logging configuration
+        self.setup()
 
-    # register extractor info
-    extractors.register_extractor(registrationEndpoints)
+        # setup logging for the exctractor
+        logging.getLogger('pyclowder').setLevel(logging.DEBUG)
+        logging.getLogger('__main__').setLevel(logging.DEBUG)
 
-    #connect to rabbitmq
-    extractors.connect_message_bus(extractorName=extractorName,
-                                   messageType=messageType,
-                                   processFileFunction=process_file,
-                                   checkMessageFunction=check_message,
-                                   rabbitmqExchange=rabbitmqExchange,
-                                   rabbitmqURL=rabbitmqURL)
+        # assign other arguments
+        self.output_dir = self.args.output_dir
 
-# ----------------------------------------------------------------------
-def check_message(parameters):
-    return True
+    # Check whether dataset already has metadata
+    def check_message(self, connector, host, secret_key, resource, parameters):
+        # For now if the dataset already has metadata from this extractor, don't recreate
+        md = pyclowder.datasets.download_metadata(connector, host, secret_key,
+                                                  parameters['datasetId'], self.extractor_info['name'])
+        if len(md) > 0:
+            for m in md:
+                if 'agent' in m and 'name' in m['agent']:
+                    if m['agent']['name'].find(self.extractor_info['name']) > -1:
+                        logging.info("skipping file %s, already processed" % resource['id'])
+                        return CheckMessage.ignore
 
-    """
-    # Check if LAS equivalent already exists - need
-    in_ply = parameters['inputfile']
-    out_las = in_ply.replace('.ply', '.las').replace('.PLY', '.LAS')
+        return CheckMessage.download
 
-    if not os.path.isfile(out_las):
-        return True
-    else:
-        print("%s already exists; skipping" % out_las)
-        return False
-    """
+    def process_message(self, connector, host, secret_key, resource, parameters):
+        in_ply = resource['local_paths'][0]
 
-def process_file(parameters):
-    in_ply = parameters['inputfile']
+        # Create output in same directory as input, but check name
+        out_dir = in_ply.replace(os.path.basename(in_ply), "")
+        out_name = resource['name'].replace('.ply', '.las').replace('.PLY', '.LAS')
+        out_las = os.path.join(out_dir, out_name)
 
-    # Create output in same directory as input, but check name
-    out_dir = in_ply.replace(os.path.basename(in_ply), "")
-    out_name = parameters['filename'].replace('.ply', '.las').replace('.PLY', '.LAS')
-    out_las = os.path.join(out_dir, out_name)
+        if in_ply:
+            logging.info("...converting %s to %s" % (in_ply, out_las))
 
-    if in_ply:
-        print("converting %s to %s" % (in_ply, out_las))
+            if not os.path.isfile(out_las):
+                # Execute processing on target file
+                subprocess.call(['pdal translate ' + \
+                                 '--writers.las.dataformat_id="0" ' + \
+                                 '--writers.las.scale_x=".000001" ' + \
+                                 '--writers.las.scale_y=".0001" ' + \
+                                 '--writers.las.scale_z=".000001" ' + \
+                                 in_ply + " " + out_las], shell=True)
 
-        if not os.path.isfile(out_las):
-            # Execute processing on target file
-            subprocess.call(['pdal translate ' + \
-                             '--writers.las.dataformat_id="0" ' + \
-                             '--writers.las.scale_x=".000001" ' + \
-                             '--writers.las.scale_y=".0001" ' + \
-                             '--writers.las.scale_z=".000001" ' + \
-                             in_ply + " " + out_las], shell=True)
-
-            if os.path.isfile(out_las):
-                # Send LAS output to Clowder source dataset
-                print("uploading %s to dataset" % out_las)
-                extractors.upload_file_to_dataset(out_las, parameters)
-        else:
-            print("...%s already exists; skipping" % out_las)
+                if os.path.isfile(out_las):
+                    # Send LAS output to Clowder source dataset
+                    logging.info("uploading %s to dataset" % out_las)
+                    pyclowder.files.upload_to_dataset(connector, host, secret_key, resource['parent_dataset_id'], out_las)
+            else:
+                logging.info("...%s already exists; skipping" % out_las)
 
 if __name__ == "__main__":
-    main()
+    extractor = Ply2LasConverter()
+    extractor.start()
