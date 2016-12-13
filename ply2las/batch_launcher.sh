@@ -9,4 +9,4 @@ module load python/2.7.10 pythonlibs/2.7.10 GCC proj4 pdal
 source /projects/arpae/terraref/shared/extractors/pyenv/bin/activate
 
 # Run extractor script
-python /projects/arpae/terraref/shared/extractors/extractors-3dscanner/ply2las/terra.ply2las.py
+python /projects/arpae/terraref/shared/extractors/extractors-3dscanner/ply2las/terra_ply2las.py
