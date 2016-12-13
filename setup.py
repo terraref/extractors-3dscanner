@@ -21,7 +21,7 @@ setup(
 
         entry_points={
             'console_scripts': [
-                'terra.ply2las.py=ply2las.terra_ply2las:main',
+                'terra_ply2las.py=ply2las.terra_ply2las:main',
             ],
         },
 
