@@ -6,12 +6,12 @@ RUN useradd -u 47852 extractor \
     && apt-get -y update \
     && apt-get install -y -q build-essential git python python-dev python-pip python-gdal pdal \
     && rm -rf /var/lib/apt/lists/* \
-    && pip install pika requests numpy urllib3 \
+    && pip install pika requests numpy urllib3 enum pyyaml \
     && mkdir /home/extractor \
     && chown -R extractor /home/extractor \
     && cd /home/extractor \
-    && git clone https://opensource.ncsa.illinois.edu/bitbucket/scm/cats/pyclowder.git \
-    && cd pyclowder \
+    && git clone https://opensource.ncsa.illinois.edu/bitbucket/scm/cats/pyclowder2.git \
+    && cd pyclowder2 \
     && python setup.py install
 
 # command to run when starting docker
@@ -28,4 +28,4 @@ CMD ["extractor"]
 ENV RABBITMQ_EXCHANGE="terra" \
     RABBITMQ_VHOST="%2F" \
     RABBITMQ_QUEUE="terra.ply2las" \
-    MAIN_SCRIPT="terra.ply2las.py"
+    MAIN_SCRIPT="terra_ply2las.py"
