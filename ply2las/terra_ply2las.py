@@ -74,7 +74,7 @@ class Ply2LasConverter(Extractor):
                 if os.path.isfile(out_las):
                     # Send LAS output to Clowder source dataset
                     logging.info("uploading %s to dataset" % out_las)
-                    pyclowder.files.upload_to_dataset(connector, host, secret_key, resource['parent_dataset_id'], out_las)
+                    pyclowder.files.upload_to_dataset(connector, host, secret_key, resource['parent']['id'], out_las)
             else:
                 logging.info("...%s already exists; skipping" % out_las)
 
