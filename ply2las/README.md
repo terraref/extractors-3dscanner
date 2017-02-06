@@ -5,11 +5,11 @@ This extractor converts PLY 3D point cloud files into LAS files.
 _Input_
 
   - Evaluation is triggered whenever a file is added to a dataset
-  - Checks whether the file is a .PLY file
+  - Checks whether there are 2 east/east .PLY files
   
 _Output_
 
-  - The dataset containing the .PLY file will get a corresponding .LAS file
+  - The dataset containing the .PLY file will get a corresponding .LAS file merging the two PLY files.
   
 ### Docker
 The Dockerfile included in this directory can be used to launch this extractor in a container.

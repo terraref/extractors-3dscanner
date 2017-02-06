@@ -8,8 +8,8 @@
     "contexts": [],
     "repository": {"repType": "git", "repUrl": "https://github.com/terraref/extractors-3dscanner.git"},
     "process": {
-        "file": [
-            "model/ply"
+        "dataset": [
+            "file.added"
         ]
     },
     "external_services": [],
