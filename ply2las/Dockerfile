@@ -4,7 +4,7 @@ MAINTAINER Max Burnette <mburnet2@illinois.edu>
 # Install any programs needed
 RUN useradd -u 47852 extractor \
     && apt-get -y update \
-    && apt-get install -y -q build-essential git python python-dev python-pip python-gdal pdal \
+    && apt-get install -y -q build-essential git netcat python python-dev python-pip python-gdal pdal \
     && rm -rf /var/lib/apt/lists/* \
     && pip install pika requests numpy urllib3 enum pyyaml \
     && mkdir /home/extractor \
@@ -28,4 +28,5 @@ CMD ["extractor"]
 ENV RABBITMQ_EXCHANGE="terra" \
     RABBITMQ_VHOST="%2F" \
     RABBITMQ_QUEUE="terra.ply2las" \
+    RABBITMQ_URI="" \
     MAIN_SCRIPT="terra_ply2las.py"
