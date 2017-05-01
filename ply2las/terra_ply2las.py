@@ -60,7 +60,7 @@ class Ply2LasConverter(Extractor):
         east_ply = None
         west_ply = None
         for p in resource['files']:
-            if p.endswith(".ply"):
+            if p['filename'].endswith(".ply"):
                 if p['filename'].find("east") > -1:
                     east_ply = p['filepath']
                 elif p['filename'].find("west") > -1:
