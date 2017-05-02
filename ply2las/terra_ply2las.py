@@ -27,6 +27,8 @@ class Ply2LasConverter(Extractor):
                                  help="root directory where timestamp & output directories will be created")
         self.parser.add_argument('--overwrite', dest="force_overwrite", type=bool, nargs='?', default=False,
                                  help="whether to overwrite output file if it already exists in output directory")
+        self.parser.add_argument('--dockerpdal', dest="pdal_docker", type=bool, nargs='?', default=False,
+                                 help="whether PDAL should be run inside a docker container")
         self.parser.add_argument('--influxHost', dest="influx_host", type=str, nargs='?',
                                  default="terra-logging.ncsa.illinois.edu", help="InfluxDB URL for logging")
         self.parser.add_argument('--influxPort', dest="influx_port", type=int, nargs='?',
@@ -48,6 +50,7 @@ class Ply2LasConverter(Extractor):
         # assign other arguments
         self.output_dir = self.args.output_dir
         self.force_overwrite = self.args.force_overwrite
+        self.pdal_docker = self.args.pdal_docker
         self.influx_host = self.args.influx_host
         self.influx_port = self.args.influx_port
         self.influx_user = self.args.influx_user
@@ -98,26 +101,38 @@ class Ply2LasConverter(Extractor):
         out_las = os.path.join(out_dir, out_name)
 
         if not os.path.exists(out_las) or self.force_overwrite:
-            tmp_east_las = "east_temp.las"
-            logging.info("...converting %s to %s" % (east_ply, tmp_east_las))
-            subprocess.call(['pdal translate ' + \
-                             '--writers.las.dataformat_id="0" ' + \
-                             '--writers.las.scale_x=".000001" ' + \
-                             '--writers.las.scale_y=".0001" ' + \
-                             '--writers.las.scale_z=".000001" ' + \
-                             east_ply + " " + tmp_east_las], shell=True)
+            if self.args.pdal_docker:
+                pdal_base = "docker run -v /home/extractor:/data pdal/pdal:1.5 "
+                in_east = east_ply.replace("/home/extractor/sites", "/data/sites")
+                in_west = west_ply.replace("/home/extractor/sites", "/data/sites")
+                tmp_east_las = "/data/east_temp.las"
+                tmp_west_las = "/data/west_temp.las"
+            else:
+                pdal_base = ""
+                in_east = east_ply
+                in_west = west_ply
+                tmp_east_las = "east_temp.las"
+                tmp_west_las = "west_temp.las"
 
-            tmp_west_las = "west_temp.las"
-            logging.info("...converting %s to %s" % (west_ply, tmp_west_las))
-            subprocess.call(['pdal translate ' + \
+            logging.info("...converting %s to %s" % (east_ply, tmp_east_las))
+            subprocess.call([pdal_base+'pdal translate ' + \
                              '--writers.las.dataformat_id="0" ' + \
                              '--writers.las.scale_x=".000001" ' + \
                              '--writers.las.scale_y=".0001" ' + \
                              '--writers.las.scale_z=".000001" ' + \
-                             west_ply + " " + tmp_west_las], shell=True)
+                             in_east + " " + tmp_east_las], shell=True)
+
+
+            logging.info("...converting %s to %s" % (west_ply, tmp_west_las))
+            subprocess.call([pdal_base+'pdal translate ' + \
+                             '--writers.las.dataformat_id="0" ' + \
+                             '--writers.las.scale_x=".000001" ' + \
+                             '--writers.las.scale_y=".0001" ' + \
+                             '--writers.las.scale_z=".000001" ' + \
+                             in_west + " " + tmp_west_las], shell=True)
 
             logging.info("...merging into %s" % out_las)
-            subprocess.call(['pdal merge '+tmp_east_las+' '+tmp_west_las+' '+out_las], shell=True)
+            subprocess.call([pdal_base+'pdal merge '+tmp_east_las+' '+tmp_west_las+' '+out_las], shell=True)
             if os.path.isfile(out_las) and out_las not in resource["local_paths"]:
                 # Send LAS output to Clowder source dataset
                 fileid = pyclowder.files.upload_to_dataset(connector, host, secret_key, resource['parent']['id'], out_las)
