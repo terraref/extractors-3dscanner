@@ -3,7 +3,6 @@
 import os
 import logging
 import subprocess
-import tempfile
 
 import datetime
 from dateutil.parser import parse
