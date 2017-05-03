@@ -131,7 +131,7 @@ class Ply2HeightEstimation(Extractor):
         out_top = os.path.join(out_dir, resource['dataset_info']['name'] + " highest.npy")
 
         logging.info("Loading %s & calculating height information" % ply_west)
-        plydata = PlyData.read(ply_west)
+        plydata = PlyData.read(str(ply_west))
         scanDirection = full_day_to_histogram.get_direction(metadata)
         hist, highest = full_day_to_histogram.gen_height_histogram(plydata, scanDirection)
 
