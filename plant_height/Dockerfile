@@ -4,9 +4,9 @@ MAINTAINER Max Burnette <mburnet2@illinois.edu>
 # Install any programs needed
 RUN useradd -u 49044 extractor \
     && apt-get -y update \
-    && apt-get install -y -q build-essential git netcat python python-dev python-pip python-gdal pdal \
+    && apt-get install -y -q build-essential git netcat python python-dev python-pip python-gdal pdal python-matplotlib \
     && rm -rf /var/lib/apt/lists/* \
-    && pip install pika requests numpy urllib3 enum pyyaml \
+    && pip install pika requests numpy urllib3 enum pyyaml matplotlib \
     && mkdir /home/extractor \
     && chown -R extractor /home/extractor \
     && cd /home/extractor \
@@ -27,6 +27,6 @@ CMD ["extractor"]
 # executed by entrypoint.sh
 ENV RABBITMQ_EXCHANGE="terra" \
     RABBITMQ_VHOST="%2F" \
-    RABBITMQ_QUEUE="terra.ply2las" \
+    RABBITMQ_QUEUE="terra.scanner3DTop.plant_height" \
     RABBITMQ_URI="" \
-    MAIN_SCRIPT="terra_ply2las.py"
+    MAIN_SCRIPT="terra_plant_height.py"

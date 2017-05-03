@@ -4,7 +4,6 @@ import os
 import logging
 import full_day_to_histogram
 import numpy as np
-from config import *
 from plyfile import PlyData, PlyElement
 
 import datetime
