@@ -114,9 +114,9 @@ class Ply2HeightEstimation(Extractor):
             elif fname.endswith('_metadata.json') and fname.find('/_metadata.json') == -1 and metafile is None:
                 metafile = fname
                 metadata = full_day_to_histogram.lower_keys(full_day_to_histogram.load_json(metafile))
-            elif f.endswith('-east_0.ply'):
+            elif fname.endswith('-east_0.ply'):
                 ply_east = fname
-            elif f.endswith('-west_0.ply'):
+            elif fname.endswith('-west_0.ply'):
                 ply_west = fname
         if None in [metafile, ply_east, ply_west, metadata]:
             logging.error('could not find all 3 of east/west/metadata')
