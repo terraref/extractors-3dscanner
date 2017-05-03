@@ -82,13 +82,6 @@ class Ply2HeightEstimation(Extractor):
                 elif p['filename'].find("west") > -1:
                     west_ply = p['filepath']
 
-
-        if not self.force_overwrite:
-            outfile = os.path.join(out_dir, 'CanopyCoverTraits.csv')
-            if os.path.isfile(outfile):
-                logging.info("skipping dataset %s, output already exists" % resource['id'])
-                return CheckMessage.ignore
-
         if east_ply and west_ply:
             out_dir = determineOutputDirectory(self.output_dir, resource['dataset_info']['name'])
             out_hist = os.path.join(out_dir, resource['dataset_info']['name'] + " histogram.npy")
