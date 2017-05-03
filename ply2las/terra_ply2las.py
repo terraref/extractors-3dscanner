@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import os
+import os, shutil
 import logging
 import subprocess
 
@@ -130,14 +130,16 @@ class Ply2LasConverter(Extractor):
                              '--writers.las.scale_z=".000001" ' + \
                              in_west + " " + tmp_west_las], shell=True)
 
-
-            dock_las = out_las.replace("/home/extractor/sites", "/data/sites")
-            logging.info("...merging into %s" % dock_las)
-            subprocess.call([pdal_base+'pdal merge '+tmp_east_las+' '+tmp_west_las+' '+dock_las], shell=True)
-            logging.info("...created %s" % out_las)
-            if os.path.isfile(out_las) and out_las not in resource["local_paths"]:
-                # Send LAS output to Clowder source dataset
-                fileid = pyclowder.files.upload_to_dataset(connector, host, secret_key, resource['parent']['id'], out_las)
+            dock_las = "/data/merged.las"
+            logging.info("...merging %s + %s into %s" % (tmp_east_las, tmp_west_las, dock_las))
+            subprocess.call([pdal_base+'pdal merge ' + \
+                             tmp_east_las+' '+tmp_west_las+' '+dock_las], shell=True)
+            if os.path.exists("/home/extractors/merged.las"):
+                shutil.move("/home/extractors/merged.las", out_las)
+                logging.info("...created %s" % out_las)
+                if os.path.isfile(out_las) and out_las not in resource["local_paths"]:
+                    # Send LAS output to Clowder source dataset
+                    fileid = pyclowder.files.upload_to_dataset(connector, host, secret_key, resource['parent']['id'], out_las)
 
             created += 1
             bytes += os.path.getsize(out_las)
