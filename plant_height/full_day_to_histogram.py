@@ -538,7 +538,7 @@ def get_direction(metadata):
     if not scan_direction:
         try:
             gantry_meta = metadata['lemnatec_measurement_metadata']['gantry_system_variable_metadata']
-            ydir = int(gantry_meta["position y [m]"])
+            ydir = float(gantry_meta["position y [m]"])
             if ydir == 0:
                 scan_direction = True
             else:
