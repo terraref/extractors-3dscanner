@@ -130,8 +130,11 @@ class Ply2LasConverter(Extractor):
                              '--writers.las.scale_z=".000001" ' + \
                              in_west + " " + tmp_west_las], shell=True)
 
-            logging.info("...merging into %s" % out_las)
-            subprocess.call([pdal_base+'pdal merge '+tmp_east_las+' '+tmp_west_las+' '+out_las], shell=True)
+
+            dock_las = out_las.replace("/home/extractor/sites", "/data/sites")
+            logging.info("...merging into %s" % dock_las)
+            subprocess.call([pdal_base+'pdal merge '+tmp_east_las+' '+tmp_west_las+' '+dock_las], shell=True)
+            logging.info("...created %s" % out_las)
             if os.path.isfile(out_las) and out_las not in resource["local_paths"]:
                 # Send LAS output to Clowder source dataset
                 fileid = pyclowder.files.upload_to_dataset(connector, host, secret_key, resource['parent']['id'], out_las)
