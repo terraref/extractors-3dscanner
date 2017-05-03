@@ -1,8 +1,11 @@
 #!/usr/bin/env python
 
-import os, shutil
+import os
 import logging
-import subprocess
+import full_day_to_histogram
+import numpy as np
+from config import *
+from plyfile import PlyData, PlyElement
 
 import datetime
 from dateutil.parser import parse
@@ -26,7 +29,7 @@ def determineOutputDirectory(outputRoot, dsname):
 
     return os.path.join(outputRoot, datestamp, timestamp)
 
-class Ply2LasConverter(Extractor):
+class Ply2HeightEstimation(Extractor):
     def __init__(self):
         Extractor.__init__(self)
 
@@ -34,7 +37,7 @@ class Ply2LasConverter(Extractor):
         # self.parser.add_argument('--max', '-m', type=int, nargs='?', default=-1,
         #                          help='maximum number (default=-1)')
         self.parser.add_argument('--output', '-o', dest="output_dir", type=str, nargs='?',
-                                 default="/home/extractor/sites/ua-mac/Level_1/scanner3DTop_mergedlas",
+                                 default="/home/extractor/sites/ua-mac/Level_1/scanner3DTop_plant_height",
                                  help="root directory where timestamp & output directories will be created")
         self.parser.add_argument('--overwrite', dest="force_overwrite", type=bool, nargs='?', default=False,
                                  help="whether to overwrite output file if it already exists in output directory")
@@ -80,13 +83,20 @@ class Ply2LasConverter(Extractor):
                 elif p['filename'].find("west") > -1:
                     west_ply = p['filepath']
 
-        if east_ply and west_ply:
-            out_dir = determineOutputDirectory(self.output_dir, resource['name'])
-            out_name = resource['name'] + " MergedPointCloud.las"
-            out_las = os.path.join(out_dir, out_name)
 
-            if os.path.exists(out_las) and not self.force_overwrite:
-                logging.info("output LAS file already exists; skipping %s" % resource['id'])
+        if not self.force_overwrite:
+            outfile = os.path.join(out_dir, 'CanopyCoverTraits.csv')
+            if os.path.isfile(outfile):
+                logging.info("skipping dataset %s, output already exists" % resource['id'])
+                return CheckMessage.ignore
+
+        if east_ply and west_ply:
+            out_dir = determineOutputDirectory(self.output_dir, resource['dataset_info']['name'])
+            out_hist = os.path.join(out_dir, resource['dataset_info']['name'] + " histogram.npy")
+            out_top = os.path.join(out_dir, resource['dataset_info']['name'] + " highest.npy")
+
+            if not self.force_overwrite and os.path.isfile(out_hist) and os.path.isfile(out_top):
+                logging.info("...outputs already exist; skipping %s" % resource['id'])
             else:
                 return CheckMessage.download
 
@@ -96,75 +106,76 @@ class Ply2LasConverter(Extractor):
         starttime = datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
         created = 0
         bytes = 0
+        uploaded_file_ids = []
 
-        east_ply = None
-        west_ply = None
-        for p in resource['local_paths']:
-            if p.endswith(".ply"):
-                if p.find("east") > -1:
-                    east_ply = p
-                elif p.find("west") > -1:
-                    west_ply = p
+        # Get left/right files and metadata
+        metafile, ply_east, ply_west, metadata = None, None, None, None
+        for fname in resource['local_paths']:
+            # First check metadata attached to dataset in Clowder for item of interest
+            if fname.endswith('_dataset_metadata.json'):
+                all_dsmd = full_day_to_histogram.load_json(f)
+                for curr_dsmd in all_dsmd:
+                    if 'content' in curr_dsmd and 'lemnatec_measurement_metadata' in curr_dsmd['content']:
+                        metafile = fname
+                        metadata = curr_dsmd['content']
+            # Otherwise, check if metadata was uploaded as a .json file
+            elif fname.endswith('_metadata.json') and fname.find('/_metadata.json') == -1 and metafile is None:
+                metafile = fname
+                metadata = full_day_to_histogram.lower_keys(full_day_to_histogram.load_json(metafile))
+            elif f.endswith('-east_0.ply'):
+                ply_east = fname
+            elif f.endswith('-west_0.ply'):
+                ply_west = fname
+        if None in [metafile, ply_east, ply_west, metadata]:
+            logging.error('could not find all 3 of east/west/metadata')
+            return
 
-        # Create output in same directory as input, but check name
-        out_dir = determineOutputDirectory(self.output_dir, resource['name'])
+        # Determine output locations
+        out_dir = determineOutputDirectory(self.output_dir, resource['dataset_info']['name'])
         if not os.path.exists(out_dir):
             os.makedirs(out_dir)
-        out_name = resource['name'] + " MergedPointCloud.las"
-        out_las = os.path.join(out_dir, out_name)
+        out_hist = os.path.join(out_dir, resource['dataset_info']['name'] + " histogram.npy")
+        out_top = os.path.join(out_dir, resource['dataset_info']['name'] + " highest.npy")
 
-        if not os.path.exists(out_las) or self.force_overwrite:
-            if self.args.pdal_docker:
-                pdal_base = "docker run -v /home/extractor:/data pdal/pdal:1.5 "
-                in_east = east_ply.replace("/home/extractor/sites", "/data/sites")
-                in_west = west_ply.replace("/home/extractor/sites", "/data/sites")
-                tmp_east_las = "/data/east_temp.las"
-                tmp_west_las = "/data/west_temp.las"
-            else:
-                pdal_base = ""
-                in_east = east_ply
-                in_west = west_ply
-                tmp_east_las = "east_temp.las"
-                tmp_west_las = "west_temp.las"
+        logging.info("Loading ply file & calculating height information......")
+        plydata = PlyData.read(ply_west)
+        scanDirection = full_day_to_histogram.get_direction(metadata)
+        hist, highest = full_day_to_histogram.gen_height_histogram(plydata, scanDirection)
 
-            logging.info("converting %s" % east_ply)
-            subprocess.call([pdal_base+'pdal translate ' + \
-                             '--writers.las.dataformat_id="0" ' + \
-                             '--writers.las.scale_x=".000001" ' + \
-                             '--writers.las.scale_y=".0001" ' + \
-                             '--writers.las.scale_z=".000001" ' + \
-                             in_east + " " + tmp_east_las], shell=True)
-
-
-            logging.info("converting %s" % west_ply)
-            subprocess.call([pdal_base+'pdal translate ' + \
-                             '--writers.las.dataformat_id="0" ' + \
-                             '--writers.las.scale_x=".000001" ' + \
-                             '--writers.las.scale_y=".0001" ' + \
-                             '--writers.las.scale_z=".000001" ' + \
-                             in_west + " " + tmp_west_las], shell=True)
-
-            dock_las = "/data/merged.las"
-            logging.info("merging %s + %s into %s" % (tmp_east_las, tmp_west_las, dock_las))
-            subprocess.call([pdal_base+'pdal merge ' + \
-                             tmp_east_las+' '+tmp_west_las+' '+dock_las], shell=True)
-            if os.path.exists("/home/extractor/merged.las"):
-                shutil.move("/home/extractor/merged.las", out_las)
-                logging.info("...created %s" % out_las)
-                if os.path.isfile(out_las) and out_las not in resource["local_paths"]:
-                    # Send LAS output to Clowder source dataset
-                    fileid = pyclowder.files.upload_to_dataset(connector, host, secret_key, resource['parent']['id'], out_las)
-
+        if not os.path.exists(out_hist) or self.force_overwrite:
+            np.save(out_hist, hist)
             created += 1
-            bytes += os.path.getsize(out_las)
+            bytes += os.path.getsize(out_hist)
+            if out_hist not in resource["local_paths"]:
+                fileid = pyclowder.files.upload_to_dataset(connector, host, secret_key, resource['parent']['id'], out_hist)
+                uploaded_file_ids.append(fileid)
 
-            if os.path.exists(tmp_east_las):
-                os.remove(tmp_east_las)
-            if os.path.exists(tmp_west_las):
-                os.remove(tmp_west_las)
+        if not os.path.exists(out_top) or self.force_overwrite:
+            np.save(out_top, highest)
+            created += 1
+            bytes += os.path.getsize(out_top)
+            if out_top not in resource["local_paths"]:
+                fileid = pyclowder.files.upload_to_dataset(connector, host, secret_key, resource['parent']['id'], out_top)
+                uploaded_file_ids.append(fileid)
 
-            endtime = datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
-            self.logToInfluxDB(starttime, endtime, created, bytes)
+        # Tell Clowder this is completed so subsequent file updates don't daisy-chain
+        metadata = {
+            "@context": {
+                "@vocab": "https://clowder.ncsa.illinois.edu/clowder/assets/docs/api/index.html#!/files/uploadToDataset"
+            },
+            "dataset_id": resource['id'],
+            "content": {
+                "files_created": uploaded_file_ids
+            },
+            "agent": {
+                "@type": "cat:extractor",
+                "extractor_id": host + "/api/extractors/" + self.extractor_info['name']
+            }
+        }
+        pyclowder.datasets.upload_metadata(connector, host, secret_key, resource['id'], metadata)
+
+        endtime = datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
+        self.logToInfluxDB(starttime, endtime, created, bytes)
 
     def logToInfluxDB(self, starttime, endtime, filecount, bytecount):
         # Time of the format "2017-02-10T16:09:57+00:00"
@@ -189,5 +200,5 @@ class Ply2LasConverter(Extractor):
         }], tags={"extractor": self.extractor_info['name'], "type": "bytes"})
 
 if __name__ == "__main__":
-    extractor = Ply2LasConverter()
+    extractor = Ply2HeightEstimation()
     extractor.start()

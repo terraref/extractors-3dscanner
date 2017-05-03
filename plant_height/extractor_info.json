@@ -1,6 +1,6 @@
 {
     "@context": "http://clowder.ncsa.illinois.edu/contexts/extractors.jsonld",
-    "name": "terra.plantheight",
+    "name": "terra.3dscanner.plantheight",
     "version": "1.0",
     "description": "Plant height estimation",
     "author": "Max Burnette <mburnet2@illinois.edu>",
