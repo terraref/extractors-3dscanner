@@ -14,6 +14,18 @@ import pyclowder.files
 import pyclowder.datasets
 
 
+def determineOutputDirectory(outputRoot, dsname):
+    if dsname.find(" - ") > -1:
+        timestamp = dsname.split(" - ")[1]
+    else:
+        timestamp = "dsname"
+    if timestamp.find("__") > -1:
+        datestamp = timestamp.split("__")[0]
+    else:
+        datestamp = ""
+
+    return os.path.join(outputRoot, datestamp, timestamp)
+
 class Ply2LasConverter(Extractor):
     def __init__(self):
         Extractor.__init__(self)
@@ -22,7 +34,7 @@ class Ply2LasConverter(Extractor):
         # self.parser.add_argument('--max', '-m', type=int, nargs='?', default=-1,
         #                          help='maximum number (default=-1)')
         self.parser.add_argument('--output', '-o', dest="output_dir", type=str, nargs='?',
-                                 default="/home/extractor/sites/ua-mac/Level_1/flirIrCamera",
+                                 default="/home/extractor/sites/ua-mac/Level_1/scanner3DTop_mergedlas",
                                  help="root directory where timestamp & output directories will be created")
         self.parser.add_argument('--overwrite', dest="force_overwrite", type=bool, nargs='?', default=False,
                                  help="whether to overwrite output file if it already exists in output directory")
@@ -69,7 +81,7 @@ class Ply2LasConverter(Extractor):
                     west_ply = p['filepath']
 
         if east_ply and west_ply:
-            out_dir = east_ply.replace(os.path.basename(east_ply), "")
+            out_dir = determineOutputDirectory(self.output_dir, resource['name'])
             out_name = resource['name'] + " MergedPointCloud.las"
             out_las = os.path.join(out_dir, out_name)
 
@@ -95,7 +107,7 @@ class Ply2LasConverter(Extractor):
                     west_ply = p
 
         # Create output in same directory as input, but check name
-        out_dir = east_ply.replace(os.path.basename(east_ply), "")
+        out_dir = determineOutputDirectory(self.output_dir, resource['name'])
         out_name = resource['name'] + " MergedPointCloud.las"
         out_las = os.path.join(out_dir, out_name)
 
