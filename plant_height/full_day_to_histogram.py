@@ -527,12 +527,26 @@ def get_position(metadata):
 
 
 def get_direction(metadata):
+    scan_direction = None
     try:
         gantry_meta = metadata['lemnatec_measurement_metadata']['gantry_system_variable_metadata']
         scan_direction = gantry_meta["scanisinpositivedirection"]
         
     except KeyError as err:
-        fail('Metadata file missing key: ' + err.args[0])
+        fail('Metadata file missing key: scanisinpositivedirection')
+
+    if not scan_direction:
+        try:
+            gantry_meta = metadata['lemnatec_measurement_metadata']['gantry_system_variable_metadata']
+            ydir = int(gantry_meta["position y [m]"])
+            if ydir == 0:
+                scan_direction = True
+            else:
+                scan_direction = False
+
+        except KeyError as err:
+            fail('Metadata file missing key: position y [m]')
+
         
     return scan_direction
 
