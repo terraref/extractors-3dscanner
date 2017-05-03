@@ -108,6 +108,8 @@ class Ply2LasConverter(Extractor):
 
         # Create output in same directory as input, but check name
         out_dir = determineOutputDirectory(self.output_dir, resource['name'])
+        if not os.path.exists(out_dir):
+            os.makedirs(out_dir)
         out_name = resource['name'] + " MergedPointCloud.las"
         out_las = os.path.join(out_dir, out_name)
 
@@ -125,7 +127,7 @@ class Ply2LasConverter(Extractor):
                 tmp_east_las = "east_temp.las"
                 tmp_west_las = "west_temp.las"
 
-            logging.info("...converting %s to %s" % (east_ply, tmp_east_las))
+            logging.info("converting %s" % east_ply)
             subprocess.call([pdal_base+'pdal translate ' + \
                              '--writers.las.dataformat_id="0" ' + \
                              '--writers.las.scale_x=".000001" ' + \
@@ -134,7 +136,7 @@ class Ply2LasConverter(Extractor):
                              in_east + " " + tmp_east_las], shell=True)
 
 
-            logging.info("...converting %s to %s" % (west_ply, tmp_west_las))
+            logging.info("converting %s" % west_ply)
             subprocess.call([pdal_base+'pdal translate ' + \
                              '--writers.las.dataformat_id="0" ' + \
                              '--writers.las.scale_x=".000001" ' + \
