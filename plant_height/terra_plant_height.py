@@ -124,12 +124,13 @@ class Ply2HeightEstimation(Extractor):
 
         # Determine output locations
         out_dir = determineOutputDirectory(self.output_dir, resource['dataset_info']['name'])
+        logging.info("output directory: %s" % out_dir)
         if not os.path.exists(out_dir):
             os.makedirs(out_dir)
         out_hist = os.path.join(out_dir, resource['dataset_info']['name'] + " histogram.npy")
         out_top = os.path.join(out_dir, resource['dataset_info']['name'] + " highest.npy")
 
-        logging.info("Loading ply file & calculating height information......")
+        logging.info("Loading %s & calculating height information" % ply_west)
         plydata = PlyData.read(ply_west)
         scanDirection = full_day_to_histogram.get_direction(metadata)
         hist, highest = full_day_to_histogram.gen_height_histogram(plydata, scanDirection)
