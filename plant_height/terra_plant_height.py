@@ -105,7 +105,7 @@ class Ply2HeightEstimation(Extractor):
         for fname in resource['local_paths']:
             # First check metadata attached to dataset in Clowder for item of interest
             if fname.endswith('_dataset_metadata.json'):
-                all_dsmd = full_day_to_histogram.load_json(f)
+                all_dsmd = full_day_to_histogram.load_json(fname)
                 for curr_dsmd in all_dsmd:
                     if 'content' in curr_dsmd and 'lemnatec_measurement_metadata' in curr_dsmd['content']:
                         metafile = fname
