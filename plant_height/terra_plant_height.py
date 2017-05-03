@@ -4,7 +4,6 @@ import os
 import logging
 import full_day_to_histogram
 import numpy as np
-from config import *
 from plyfile import PlyData, PlyElement
 
 import datetime
@@ -83,13 +82,6 @@ class Ply2HeightEstimation(Extractor):
                 elif p['filename'].find("west") > -1:
                     west_ply = p['filepath']
 
-
-        if not self.force_overwrite:
-            outfile = os.path.join(out_dir, 'CanopyCoverTraits.csv')
-            if os.path.isfile(outfile):
-                logging.info("skipping dataset %s, output already exists" % resource['id'])
-                return CheckMessage.ignore
-
         if east_ply and west_ply:
             out_dir = determineOutputDirectory(self.output_dir, resource['dataset_info']['name'])
             out_hist = os.path.join(out_dir, resource['dataset_info']['name'] + " histogram.npy")
@@ -113,7 +105,7 @@ class Ply2HeightEstimation(Extractor):
         for fname in resource['local_paths']:
             # First check metadata attached to dataset in Clowder for item of interest
             if fname.endswith('_dataset_metadata.json'):
-                all_dsmd = full_day_to_histogram.load_json(f)
+                all_dsmd = full_day_to_histogram.load_json(fname)
                 for curr_dsmd in all_dsmd:
                     if 'content' in curr_dsmd and 'lemnatec_measurement_metadata' in curr_dsmd['content']:
                         metafile = fname
@@ -122,9 +114,9 @@ class Ply2HeightEstimation(Extractor):
             elif fname.endswith('_metadata.json') and fname.find('/_metadata.json') == -1 and metafile is None:
                 metafile = fname
                 metadata = full_day_to_histogram.lower_keys(full_day_to_histogram.load_json(metafile))
-            elif f.endswith('-east_0.ply'):
+            elif fname.endswith('-east_0.ply'):
                 ply_east = fname
-            elif f.endswith('-west_0.ply'):
+            elif fname.endswith('-west_0.ply'):
                 ply_west = fname
         if None in [metafile, ply_east, ply_west, metadata]:
             logging.error('could not find all 3 of east/west/metadata')
@@ -132,12 +124,13 @@ class Ply2HeightEstimation(Extractor):
 
         # Determine output locations
         out_dir = determineOutputDirectory(self.output_dir, resource['dataset_info']['name'])
+        logging.info("output directory: %s" % out_dir)
         if not os.path.exists(out_dir):
             os.makedirs(out_dir)
         out_hist = os.path.join(out_dir, resource['dataset_info']['name'] + " histogram.npy")
         out_top = os.path.join(out_dir, resource['dataset_info']['name'] + " highest.npy")
 
-        logging.info("Loading ply file & calculating height information......")
+        logging.info("Loading %s & calculating height information" % ply_west)
         plydata = PlyData.read(ply_west)
         scanDirection = full_day_to_histogram.get_direction(metadata)
         hist, highest = full_day_to_histogram.gen_height_histogram(plydata, scanDirection)
