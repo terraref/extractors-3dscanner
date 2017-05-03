@@ -86,7 +86,7 @@ class Ply2LasConverter(Extractor):
             out_las = os.path.join(out_dir, out_name)
 
             if os.path.exists(out_las) and not self.force_overwrite:
-                logging.info("...output LAS file already exists; skipping %s" % resource['id'])
+                logging.info("output LAS file already exists; skipping %s" % resource['id'])
             else:
                 return CheckMessage.download
 
@@ -145,7 +145,7 @@ class Ply2LasConverter(Extractor):
                              in_west + " " + tmp_west_las], shell=True)
 
             dock_las = "/data/merged.las"
-            logging.info("...merging %s + %s into %s" % (tmp_east_las, tmp_west_las, dock_las))
+            logging.info("merging %s + %s into %s" % (tmp_east_las, tmp_west_las, dock_las))
             subprocess.call([pdal_base+'pdal merge ' + \
                              tmp_east_las+' '+tmp_west_las+' '+dock_las], shell=True)
             if os.path.exists("/home/extractor/merged.las"):
