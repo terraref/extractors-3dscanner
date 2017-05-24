@@ -1,18 +1,11 @@
-FROM ubuntu
+FROM terraref/terrautils
 MAINTAINER Max Burnette <mburnet2@illinois.edu>
 
-# Install any programs needed
+# Create user with necessary user ID for writing permissions on Roger
 RUN useradd -u 49044 extractor \
-    && apt-get -y update \
-    && apt-get install -y -q build-essential git netcat python python-dev python-pip python-gdal pdal python-matplotlib \
-    && rm -rf /var/lib/apt/lists/* \
-    && pip install pika requests numpy urllib3 enum pyyaml matplotlib \
-    && mkdir /home/extractor \
-    && chown -R extractor /home/extractor \
-    && cd /home/extractor \
-    && git clone https://opensource.ncsa.illinois.edu/bitbucket/scm/cats/pyclowder2.git \
-    && cd pyclowder2 \
-    && python setup.py install
+    && mkdir -p /home/extractor/sites/ua-mac/raw_data \
+    && mkdir -p /home/extractor/sites/ua-mac/Level_1/scanner3DTop_plant_height \
+    && chown -R extractor /home/extractor
 
 # command to run when starting docker
 COPY entrypoint.sh extractor_info.json *.py /home/extractor/
