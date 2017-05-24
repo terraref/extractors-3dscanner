@@ -1,18 +1,47 @@
-FROM ubuntu
+FROM pdal/pdal:1.5
 MAINTAINER Max Burnette <mburnet2@illinois.edu>
 
 # Install any programs needed
 RUN useradd -u 49044 extractor \
-    && apt-get -y update \
-    && apt-get install -y -q build-essential git netcat python python-dev python-pip python-gdal pdal \
-    && rm -rf /var/lib/apt/lists/* \
-    && pip install pika requests numpy urllib3 enum pyyaml \
-    && mkdir /home/extractor \
+    && mkdir -p /home/extractor/sites/ua-mac/raw_data \
+    && mkdir -p /home/extractor/sites/ua-mac/Level_1/scanner3DTop \
+    && mkdir -p /home/extractor/sites/ua-mac/Level_1/scanner3DTop_mergedlas \
     && chown -R extractor /home/extractor \
-    && cd /home/extractor \
+    # Requirements for terrautils
+    && apt-get -q -y update \
+    && apt-get install -y --no-install-recommends build-essential \
+        software-properties-common \
+        gcc make wget byacc \
+        libpng-dev \
+        libjpeg8-dev \
+        libfreetype6-dev \
+        libnetcdf-dev \
+        libhdf5-dev \
+        libblas-dev \
+        liblapack-dev \
+        libatlas-base-dev \
+        libgdal-dev \
+        python-dev \
+        python-tk \
+    # Requirements for pyclowder
+        netcat \
+        python \
+        python-pip \
+        git \
+    && add-apt-repository ppa:ubuntugis/ubuntugis-unstable \
+    && apt-get -q -y update \
+    && apt-get install -y python-gdal \
+    && pip install --upgrade setuptools \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install pyclowder and terrautils
+RUN cd /home/extractor \
     && git clone https://opensource.ncsa.illinois.edu/bitbucket/scm/cats/pyclowder2.git \
-    && cd pyclowder2 \
-    && python setup.py install
+    && pip install --upgrade -r pyclowder2/requirements.txt \
+    && pip install --upgrade /home/extractor/pyclowder2 \
+    && git clone https://github.com/terraref/terrautils.git \
+    && pip install --upgrade -r terrautils/requirements.txt \
+    && pip install --upgrade /home/extractor/terrautils
 
 # command to run when starting docker
 COPY entrypoint.sh extractor_info.json *.py /home/extractor/
