@@ -6,7 +6,7 @@
     "author": "Solmaz Hajmohammadi <solmaz.hajmohammadi@lemnatec.de>",
     "contributors": [],
     "contexts": [],
-    "repository": {"repType": "git", "repUrl": "https://github.com/terraref/extractors-heightmap.git"},
+    "repository": {"repType": "git", "repUrl": "https://github.com/terraref/extractors-3dscanner.git"},
     "process": {
         "file": [
             "model/ply"

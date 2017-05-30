@@ -29,24 +29,19 @@ class heightmap(Extractor):
         logging.getLogger('__main__').setLevel(logging.DEBUG)
         print "\n 0 \n"
 
-
     # Check whether dataset already has metadata
     def check_message(self, connector, host, secret_key, resource, parameters):
         # Check if we have a PLY file, but not an bmp file already
 
-	input_ply = None
-	#print "parameters"
-	#print parameters
-	#print "resource"
-	#print resource
-	
-	#print("print resource['local_paths']:%s"%(resource["local_paths"][0]))
-	for f in resource['files']:
-	    if f['filename'].endswith(".ply"):
-	        input_ply=  f['filepath']
+        input_ply = None
+        #print resource
 
+        #print("print resource['local_paths']:%s"%(resource["local_paths"][0]))
+        for f in resource['files']:
+            if f['filename'].endswith(".ply"):
+                input_ply=  f['filepath']
 
-	if input_ply:
+        if input_ply:
             out_dir = input_ply.replace(os.path.basename(input_ply), "")
             out_name = resource['name'] + "heightmap.bmp"
             out_bmp = os.path.join(out_dir, out_name)
@@ -55,20 +50,17 @@ class heightmap(Extractor):
             else:
                 return CheckMessage.download
 
-	return CheckMessage.ignore
-
+        return CheckMessage.ignore
                           
     def process_message(self, connector, host, secret_key, resource, parameters):
-        	
-
         input_ply = None
         for p in resource['local_paths']:
             if p.endswith(".ply"):
                 input_ply = p
-	print input_ply
+        print input_ply
         print("start processing")
         
-	# Create output in same directory as input, but check name
+        # Create output in same directory as input, but check name
         out_dir = input_ply.replace(os.path.basename(input_ply), "")
         out_name = resource['name'] + "heightmap.bmp"
         out_bmp = os.path.join(out_dir, out_name)
@@ -76,14 +68,14 @@ class heightmap(Extractor):
 
         subprocess.call(['git clone https://github.com/solmazhajmohammadi/heightmap '], shell=True)
         #os.chdir('heightmap')
-	subprocess.call(['cp -rT /home/extractor/heightmap .'], shell= True)
-	subprocess.call(['chmod 777 main'], shell=True)
+        subprocess.call(['cp -rT /home/extractor/heightmap .'], shell= True)
+        subprocess.call(['chmod 777 main'], shell=True)
         subprocess.call(["./main", "-i", input_ply , "-o", out_bmp])
 
         if os.path.isfile(out_bmp):
             # Send bmp output to Clowder source dataset
-	    logging.info("uploading %s to dataset" % out_bmp)
-	    pyclowder.files.upload_to_dataset(connector, host, secret_key, resource['parent']['id'], out_bmp)
+            logging.info("uploading %s to dataset" % out_bmp)
+            pyclowder.files.upload_to_dataset(connector, host, secret_key, resource['parent']['id'], out_bmp)
        
 
 if __name__ == "__main__":
