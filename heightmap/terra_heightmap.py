@@ -36,7 +36,6 @@ class heightmap(Extractor):
         input_ply = None
         #print resource
 
-        #print("print resource['local_paths']:%s"%(resource["local_paths"][0]))
         for f in resource['files']:
             if f['filename'].endswith(".ply"):
                 input_ply=  f['filepath']
