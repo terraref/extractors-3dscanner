@@ -44,7 +44,7 @@ class heightmap(Extractor):
 
 	if input_ply:
             out_dir = input_ply.replace(os.path.basename(input_ply), "")
-            out_name = resource['name'] + "heightmap.bmp"
+            out_name = resource['name'] + "_heightmap.bmp"
             out_bmp = os.path.join(out_dir, out_name)
             if os.path.exists(out_bmp):
                 logging.info("output file already exists; skipping %s" % resource['id'])
