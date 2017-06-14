@@ -31,10 +31,12 @@ RUN cd /home/extractor \
         python \
         python-pip \
         git \
+        gcc \
+        gfortran \
     && add-apt-repository ppa:ubuntugis/ubuntugis-unstable \
     && apt-get -q -y update \
     && apt-get install -y python-gdal \
-    && pip install --upgrade setuptools \
+    && pip install --upgrade pip setuptools \
     && rm -rf /var/lib/apt/lists/*
 # Install pyclowder and terrautils
 RUN cd /home/extractor \
@@ -64,11 +66,10 @@ RUN apt-get update \
         python-numpy \
         python-pycurl \
         libatlas-base-dev \
-        gfortran \
         webp \
         python-opencv \
         qt5-default \
-        libvtk6-dev \
+        #libvtk6-dev \
         zlib1g-dev
 
 # Install Open CV - Warning, this takes absolutely forever
@@ -148,12 +149,13 @@ RUN apt-get update \
 
 RUN add-apt-repository ppa:v-launchpad-jochen-sprickerhof-de/pcl \
     && apt-get update \
-    && apt-get install -y libpcl-all
+    && apt-get install -y libpcl-all libffi-dev libssl-dev
 
-RUN pip install cython numpy git+https://github.com/strawlab/python-pcl.git#egg=pcl
+RUN pip install -U requests[security] pyopenssl ndg-httpsclient pyasn1 cython
+RUN pip install numpy git+http://github.com/strawlab/python-pcl.git#egg=pcl
 
 # command to run when starting docker
-COPY entrypoint.sh extractor_info.json *.py *.cpp main heightmap PCLDLL.h CMakeLists.txt /home/extractor/
+COPY entrypoint.sh extractor_info.json *.py *.cpp main PCLDLL.h CMakeLists.txt /home/extractor/
 
 USER extractor
 ENTRYPOINT ["/home/extractor/entrypoint.sh"]

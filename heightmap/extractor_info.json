@@ -1,6 +1,6 @@
 {
     "@context": "http://clowder.ncsa.illinois.edu/contexts/extractors.jsonld",
-    "name": "terra.heightmap",
+    "name": "terra.3dscanner.heightmap",
     "version": "2.0",
     "description": "3D to 2D Height Map conversion extractor",
     "author": "Solmaz Hajmohammadi <solmaz.hajmohammadi@lemnatec.de>",
