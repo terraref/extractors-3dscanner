@@ -61,36 +61,23 @@ class heightmap(Extractor):
 
     # Check whether dataset already has metadata
     def check_message(self, connector, host, secret_key, resource, parameters):
-        # Check if we have a PLY file, but not an bmp file already
-        input_ply = None
-        for f in resource['files']:
-            if f['filename'].endswith(".ply"):
-                input_ply=  f['filepath']
-
-        if input_ply:
-            ds_md = pyclowder.datasets.get_info(connector, host, secret_key, resource['parent']['id'])
-            out_dir = terrautils.extractors.get_output_directory(self.output_dir, ds_md['name'])
-            out_name = terrautils.extractors.get_output_filename(ds_md['name'], 'bmp', opts=['heightmap'])
-            out_bmp = os.path.join(out_dir, out_name)
-            if os.path.exists(out_bmp):
-                logging.info("output file already exists; skipping %s" % resource['id'])
-            else:
-                return CheckMessage.download
-
-        return CheckMessage.ignore
+        # Check not an bmp file already
+        ds_md = pyclowder.datasets.get_info(connector, host, secret_key, resource['parent']['id'])
+        out_dir = terrautils.extractors.get_output_directory(self.output_dir, ds_md['name'])
+        out_name = terrautils.extractors.get_output_filename(ds_md['name'], 'bmp', opts=['heightmap'])
+        out_bmp = os.path.join(out_dir, out_name)
+        if os.path.exists(out_bmp):
+            logging.info("output file already exists; skipping %s" % resource['id'])
+            return CheckMessage.ignore
+        else:
+            return CheckMessage.download
                           
     def process_message(self, connector, host, secret_key, resource, parameters):
         starttime = datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
         created = 0
         bytes = 0
 
-        input_ply = None
-        for p in resource['local_paths']:
-            if p.endswith(".ply"):
-                input_ply = p
-
-        print input_ply
-        print("start processing")
+        input_ply = resource['local_paths'][0]
         
         # Create output in same directory as input, but check name
         ds_md = pyclowder.datasets.get_info(connector, host, secret_key, resource['parent']['id'])
@@ -100,6 +87,7 @@ class heightmap(Extractor):
         out_name = terrautils.extractors.get_output_filename(ds_md['name'], 'bmp', opts=['heightmap'])
         out_bmp = os.path.join(out_dir, out_name)
 
+        logging.debug("./main -i %s -o %s" % (input_ply, out_bmp))
         subprocess.call(["./main", "-i", input_ply , "-o", out_bmp])
 
         if os.path.isfile(out_bmp):
@@ -112,7 +100,8 @@ class heightmap(Extractor):
                 pyclowder.files.upload_to_dataset(connector, host, secret_key, resource['parent']['id'], out_bmp)
 
         endtime = datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
-        self.logToInfluxDB(starttime, endtime, created, bytes)
+        terrautils.extractors.log_to_influxdb(self.extractor_info['name'], self.influx_params,
+                                              starttime, endtime, created, bytes)
 
 if __name__ == "__main__":
     extractor = heightmap()
