@@ -84,7 +84,7 @@ class Ply2HeightEstimation(Extractor):
                     resource['dataset_info']['name'], 'npy', opts=['histogram']))
             out_top = os.path.join(out_dir, terrautils.extractors.get_output_filename(
                     resource['dataset_info']['name'], 'npy', opts=['highest']))
-            if not self.force_overwrite and os.path.isfile(out_hist) and os.path.isfile(out_top):
+            if (not self.force_overwrite) and os.path.isfile(out_hist) and os.path.isfile(out_top):
                 logging.info("...outputs already exist; skipping %s" % resource['id'])
             else:
                 return CheckMessage.download

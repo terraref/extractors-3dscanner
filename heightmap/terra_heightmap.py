@@ -84,24 +84,37 @@ class heightmap(Extractor):
         out_dir = terrautils.extractors.get_output_directory(self.output_dir, ds_md['name'])
         if not os.path.exists(out_dir):
             os.makedirs(out_dir)
-        out_name = terrautils.extractors.get_output_filename(ds_md['name'], 'bmp', opts=['heightmap'])
+        out_name = terrautils.extractors.get_output_filename(ds_md['name'], '', opts=['heightmap'])
         out_bmp = os.path.join(out_dir, out_name)
 
-        logging.debug("./main -i %s -o %s" % (input_ply, out_bmp))
-        subprocess.call(["./main", "-i", input_ply , "-o", out_bmp])
+        logging.info("./main -i %s -o %s" % (input_ply, out_bmp))
+        subprocess.call(["./main -i %s -o %s" % (input_ply, out_bmp)], shell=True)
 
-        if os.path.isfile(out_bmp):
+        # the subprocess actually adds to the out_bmp string to create 2 files
+        main_bmp = out_bmp+".bmp"
+        if os.path.isfile(main_bmp):
             created += 1
-            bytes += os.path.getsize(out_bmp)
-
+            bytes += os.path.getsize(main_bmp)
             # Send bmp output to Clowder source dataset if not already pointed to
-            if out_bmp not in resource["local_paths"]:
-                logging.info("uploading %s to dataset" % out_bmp)
-                pyclowder.files.upload_to_dataset(connector, host, secret_key, resource['parent']['id'], out_bmp)
+            if main_bmp not in resource["local_paths"]:
+                logging.info("uploading %s to dataset" % main_bmp)
+                pyclowder.files.upload_to_dataset(connector, host, secret_key, resource['parent']['id'], main_bmp)
+
+        mask_bmp = out_bmp+"_mask.bmp"
+        if os.path.isfile(mask_bmp):
+            created += 1
+            bytes += os.path.getsize(mask_bmp)
+            # Send bmp output to Clowder source dataset if not already pointed to
+            if mask_bmp not in resource["local_paths"]:
+                logging.info("uploading %s to dataset" % mask_bmp)
+                pyclowder.files.upload_to_dataset(connector, host, secret_key, resource['parent']['id'], mask_bmp)
 
         endtime = datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
         terrautils.extractors.log_to_influxdb(self.extractor_info['name'], self.influx_params,
                                               starttime, endtime, created, bytes)
+
+    def replace_right(self, source, target, replacement, replacements=None):
+        return replacement.join(source.rsplit(target, replacements))
 
 if __name__ == "__main__":
     extractor = heightmap()
