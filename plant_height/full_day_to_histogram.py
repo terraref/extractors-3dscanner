@@ -33,8 +33,6 @@ def options():
 def main():
     print("start...")
     
-    #full_day_array_to_xlsx_for_roman('/Users/Desktop/heightDistribution/2016-09-29')
-    
     args = options()
     
     if args.mode == 'all':
@@ -70,7 +68,7 @@ def process_all_scanner_data(ply_parent, json_parent, out_parent):
         if ind < start_ind:
             continue
         print('start processing' + out_path)
-        #full_day_gen_hist(ply_path, json_path, out_path)
+        full_day_gen_hist(ply_path, json_path, out_path)
         try:
             create_normalization_hist(out_path, out_path)
         except Exception as ex:
@@ -81,8 +79,8 @@ def process_all_scanner_data(ply_parent, json_parent, out_parent):
 
 def process_one_month_data(ply_parent, json_parent, out_parent, str_month):
     
-    for day in range(20, 21):
-        target_date = date(2016, int(11), day)
+    for day in range(27, 30):
+        target_date = date(2017, int(4), day)
         str_date = target_date.isoformat()
         print(str_date)
         ply_path = os.path.join(ply_parent, str_date)
@@ -207,74 +205,38 @@ def gen_hist(ply_path, json_path, out_dir):
         
     if not os.path.isdir(out_dir):
         os.mkdir(out_dir)
-    print "creating meta histogram... "
+        
     # parse json file
     metas, ply_file_wests, ply_file_easts = find_input_files(ply_path, json_path)
     
     for meta, ply_file_west, ply_file_east in zip(metas, ply_file_wests, ply_file_easts):
         metadata = lower_keys(load_json(os.path.join(json_path, meta))) # make all our keys lowercase since keys appear to change case (???)
         
-        #center_position = get_position(metadata) # (x, y, z) in meters
+        center_position = get_position(metadata) # (x, y, z) in meters
         scanDirection = get_direction(metadata) # scan direction
         
         plywest = PlyData.read(os.path.join(ply_path, ply_file_west))
-        hist_w, heightest_w = gen_height_histogram_for_Roman(plywest, scanDirection, out_dir, 'w')
+        hist_w, heightest_w = gen_height_histogram_for_Roman(plywest, scanDirection, out_dir, 'w', center_position)
         
-        histPath = os.path.join(out_dir, 'hist.npy')
-        print(histPath)
+        histPath = os.path.join(out_dir, 'hist_w.npy')
         np.save(histPath, hist_w)
-        heightestPath = os.path.join(out_dir, 'top.npy')
-        print(heightestPath)
+        heightestPath = os.path.join(out_dir, 'top_w.npy')
         np.save(heightestPath, heightest_w)
-        '''
+        
         plyeast = PlyData.read(os.path.join(ply_path, ply_file_east))
-        hist_e, heightest_e = gen_height_histogram_for_Roman(plyeast, scanDirection, out_dir, 'e')
+        hist_e, heightest_e = gen_height_histogram_for_Roman(plyeast, scanDirection, out_dir, 'e', center_position)
         
         histPath = os.path.join(out_dir, 'hist_e.npy')
-        print(histPath)
         np.save(histPath, hist_e)
         heightestPath = os.path.join(out_dir, 'top_e.npy')
-        print(heightestPath)
         np.save(heightestPath, heightest_e)
-        '''
+        
         json_dst = os.path.join(out_dir, meta)
         shutil.copyfile(os.path.join(json_path, meta), json_dst)
     
     return
 
-def get_height_result(in_dir):
-    
-    if not os.path.isdir(in_dir):
-        fail('Could not find input directory: ' + in_dir)
-    
-    plotNum = np.zeros((16,1))
-    hist_data = np.zeros((16,400))
-    top_data = np.zeros((16,1))
-    hist_shift = hist_data
-    
-    # parse json file
-    metafile, hist, top = find_result_files(in_dir)
-    if metafile == [] or hist == [] :
-        return plotNum, hist_shift, top_data
-    
-    Z0 = 4
-    
-    metadata = lower_keys(load_json(metafile))
-    center_position = get_position(metadata)
-    z_shift = int((Z0-center_position[2])*100)
-    hist_data = np.load(hist, 'r')
-    top_data = np.load(top, 'r')
-        
-    hist_shift = np.concatenate((hist_data[:,z_shift:], hist_data[:,:z_shift]), axis=1)
-    top_data = top_data - (2.65-center_position[2])*1000
-        
-    for i in range(0,16):
-        #plotNum[i] = field_2_plot(center_position[0], i+1)
-        plotNum[i] = field_2_plot_for_season_two(center_position[0], i+1)
-    
-    return plotNum.astype('int'), hist_shift, top_data
-
-def get_height_result_for_roman(in_dir):
+def get_height_result_for_roman(in_dir, sensor_d):
     
     if not os.path.isdir(in_dir):
         fail('Could not find input directory: ' + in_dir)
@@ -282,63 +244,23 @@ def get_height_result_for_roman(in_dir):
     plotNum = np.zeros((32,1))
     hist_data = np.zeros((32,400))
     top_data = np.zeros((32,1))
-    hist_shift = hist_data
     
     # parse json file
-    metafile, hist, top = find_result_files(in_dir)
+    metafile, hist, top = find_result_files(in_dir, sensor_d)
     if metafile == [] or hist == [] :
-        return plotNum, hist_shift, top_data
+        return plotNum, hist_data, top_data
     
-    Z0 = 4
     
     metadata = lower_keys(load_json(metafile))
     center_position = get_position(metadata)
-    z_shift = int((Z0-center_position[2])*100)
     hist_data = np.load(hist, 'r')
     top_data = np.load(top, 'r')
-        
-    hist_shift = np.concatenate((hist_data[:,z_shift:], hist_data[:,:z_shift]), axis=1)
-    top_data = top_data - (2.65-center_position[2])*1000
         
     for i in range(0,32):
         #plotNum[i] = field_2_plot(center_position[0], i+1)
         plotNum[i] = field_2_plot_for_roman(center_position[0], i+1)
     
-    return plotNum.astype('int'), hist_shift, top_data
-
-def full_day_array_to_xlsx(in_dir):
-    
-    list_dirs = os.walk(in_dir)
-    heightHist = np.zeros((864, 400))
-    topMat = np.zeros((864))
-    
-    for root, dirs, files in list_dirs:
-        for d in dirs:
-            full_path = os.path.join(in_dir, d)
-            if not os.path.isdir(full_path):
-                continue
-            
-            plotNum, hist, top = get_height_result(full_path)
-            if len(plotNum) < 16:
-                continue
-            
-            for j in range(0,plotNum.size):
-                heightHist[plotNum[j]-1] = heightHist[plotNum[j]-1]+hist[j]
-                
-                if topMat[plotNum[j]-1] < top[j]:
-                    topMat[plotNum[j]-1] = top[j]
-    
-    histfile = os.path.join(in_dir, 'heightHist.npy')
-    topfile = os.path.join(in_dir, 'topHist.npy')
-    np.save(histfile, heightHist)
-    np.save(topfile, topMat)
-    
-    hist_out_file = os.path.join(in_dir, 'hist.xlsx')
-    np.savetxt(hist_out_file, np.array(heightHist), delimiter="\t")
-    top_out_file = os.path.join(in_dir, 'top.xlsx')
-    np.savetxt(top_out_file, np.array(topMat), delimiter="\t")
-    
-    return
+    return plotNum.astype('int'), hist_data, top_data
 
 def create_normalization_hist(in_dir, out_dir):
     
@@ -379,31 +301,33 @@ def full_day_array_to_xlsx_for_roman(in_dir):
     heightHist = np.zeros((1728, 400))
     topMat = np.zeros((1728))
     
-    for root, dirs, files in list_dirs:
-        for d in dirs:
-            full_path = os.path.join(in_dir, d)
-            if not os.path.isdir(full_path):
-                continue
-            
-            plotNum, hist, top = get_height_result_for_roman(full_path)
-            if len(plotNum) < 32:
-                continue
-            
-            for j in range(0,plotNum.size):
-                heightHist[plotNum[j]-1] = heightHist[plotNum[j]-1]+hist[j]
+    for sensor_d in ['e','w']:
+        for root, dirs, files in list_dirs:
+            for d in dirs:
+                full_path = os.path.join(in_dir, d)
+                if not os.path.isdir(full_path):
+                    continue
                 
-                if topMat[plotNum[j]-1] < top[j]:
-                    topMat[plotNum[j]-1] = top[j]
-    
-    histfile = os.path.join(in_dir, 'heightHist.npy')
-    topfile = os.path.join(in_dir, 'topHist.npy')
-    np.save(histfile, heightHist)
-    np.save(topfile, topMat)
-    
-    hist_out_file = os.path.join(in_dir, 'hist.txt')
-    np.savetxt(hist_out_file, np.array(heightHist), delimiter="\t")
-    top_out_file = os.path.join(in_dir, 'top.txt')
-    np.savetxt(top_out_file, np.array(topMat), delimiter="\t")
+                plotNum, hist, top = get_height_result_for_roman(full_path, sensor_d)
+                if len(plotNum) < 32:
+                    continue
+                
+                for j in range(0,plotNum.size):
+                    heightHist[plotNum[j]-1] = heightHist[plotNum[j]-1]+hist[j]
+                    
+                    if topMat[plotNum[j]-1] < top[j]:
+                        topMat[plotNum[j]-1] = top[j]
+        
+        histfile = os.path.join(in_dir, 'heightHist_'+sensor_d+'.npy')
+        topfile = os.path.join(in_dir, 'topHist_'+sensor_d+'.npy')
+        np.save(histfile, heightHist)
+        np.save(topfile, topMat)
+        '''
+        hist_out_file = os.path.join(in_dir, 'hist_'+sensor_d+'.txt')
+        np.savetxt(hist_out_file, np.array(heightHist), delimiter="\t")
+        top_out_file = os.path.join(in_dir, 'top_'+sensor_d+'.txt')
+        np.savetxt(top_out_file, np.array(topMat), delimiter="\t")
+        '''
     
     return
 
@@ -436,7 +360,7 @@ def field_2_plot_for_roman(x_position, y_row):
     xRange = 0
     count = 0
         
-    for (xmin, xmax) in terra_common._x_range_s2:
+    for (xmin, xmax) in terra_common._x_range_s4:
         count = count + 1
         if (x_position > xmin) and (x_position <= xmax):
             xRange = 55 - count
@@ -447,7 +371,7 @@ def field_2_plot_for_roman(x_position, y_row):
     
     return 0
 
-def find_result_files(in_dir):
+def find_result_files(in_dir, sensor_d):
     
     metadata_suffix = os.path.join(in_dir, '*_metadata.json')
     metas = glob(metadata_suffix)
@@ -455,14 +379,13 @@ def find_result_files(in_dir):
         fail('No metadata file found in input directory.')
         return [], [], []
 
-    hist_file = os.path.join(in_dir, 'hist.npy')
-    top_file = os.path.join(in_dir, 'top.npy')
+    hist_file = os.path.join(in_dir, 'hist_'+sensor_d+'.npy')
+    top_file = os.path.join(in_dir, 'top_'+sensor_d+'.npy')
     if os.path.isfile(hist_file) == False | os.path.isfile(top_file) == False:
         fail('No hist file or top file in input directory')
         return [], [], []
 
     return metas[0], hist_file, top_file
-
 
     
 def load_json(meta_path):
@@ -512,6 +435,7 @@ def get_position(metadata):
         
         sensor_fix_meta = metadata['lemnatec_measurement_metadata']['sensor_fixed_metadata']
         camera_x = '2.070'#sensor_fix_meta['scanner west location in camera box x [m]']
+        camera_z = '1.135'
         
 
     except KeyError as err:
@@ -520,33 +444,19 @@ def get_position(metadata):
     try:
         x = float(gantry_x) + float(camera_x)
         y = float(gantry_y)
-        z = float(gantry_z)
+        z = float(gantry_z) + float(camera_z)
     except ValueError as err:
         fail('Corrupt positions, ' + err.args[0])
     return (x, y, z)
 
 
 def get_direction(metadata):
-    scan_direction = None
     try:
         gantry_meta = metadata['lemnatec_measurement_metadata']['gantry_system_variable_metadata']
         scan_direction = gantry_meta["scanisinpositivedirection"]
         
     except KeyError as err:
-        fail('Metadata file missing key: scanisinpositivedirection')
-
-    if not scan_direction:
-        try:
-            gantry_meta = metadata['lemnatec_measurement_metadata']['gantry_system_variable_metadata']
-            ydir = float(gantry_meta["position y [m]"])
-            if ydir == 0:
-                scan_direction = True
-            else:
-                scan_direction = False
-
-        except KeyError as err:
-            fail('Metadata file missing key: position y [m]')
-
+        fail('Metadata file missing key: ' + err.args[0])
         
     return scan_direction
 
@@ -591,10 +501,28 @@ def gen_height_histogram(plydata, scanDirection):
     
     return hist, heightest
 
-def gen_height_histogram_for_Roman(plydata, scanDirection, out_dir, sensor_d):
+def offset_choice(scanDirection, sensor_d):
     
+    if sensor_d == 'w':
+        if scanDirection == 'True':
+            ret = -3.45#-3.08
+        else:
+            ret = -25.711#-25.18
+            
+    if sensor_d == 'e':
+        if scanDirection == 'True':
+            ret = -3.45#-3.08
+        else:
+            ret = -25.711#-25.18
+    
+    return ret
+
+def gen_height_histogram_for_Roman(plydata, scanDirection, out_dir, sensor_d, center_position):
+    
+    gantry_z_offset = 0.35
+    zGround = (3.445 - center_position[2] + gantry_z_offset)*1000
     yRange = 32
-    yShift = -3
+    yShift = offset_choice(scanDirection, sensor_d)
     zOffset = 10
     zRange = [-2000, 2000]
     scaleParam = 1000
@@ -605,15 +533,20 @@ def gen_height_histogram_for_Roman(plydata, scanDirection, out_dir, sensor_d):
     if data.size == 0:
         return hist, heightest
     
-    if scanDirection == 'False':
-        yShift = -25.1
-    
     for i in range(0, yRange):
-        ymin = (terra_common._y_row_s2[i][0]+yShift) * scaleParam
-        ymax = (terra_common._y_row_s2[i][1]+yShift) * scaleParam
+        ymin = (terra_common._y_row_s4[i][0]+yShift) * scaleParam
+        ymax = (terra_common._y_row_s4[i][1]+yShift) * scaleParam
         specifiedIndex = np.where((data["y"]>ymin) & (data["y"]<ymax))
         target = data[specifiedIndex]
         
+        for j in range(0, 400):
+            zmin = zGround + j * zOffset
+            zmax = zGround + (j+1) * zOffset
+            zIndex = np.where((target["z"]>zmin) & (target["z"]<zmax));
+            num = len(zIndex[0])
+            hist[i][j] = num
+        
+        '''
         zloop = 0
         for z in range(zRange[0],zRange[1], zOffset):       
             zmin = z
@@ -622,17 +555,20 @@ def gen_height_histogram_for_Roman(plydata, scanDirection, out_dir, sensor_d):
             num = len(zIndex[0])
             hist[i][zloop] = num
             zloop = zloop + 1
+        '''
     
         zTop = 0;
         if len(specifiedIndex[0])!=0:
             zTop = target["z"].max()
         
         heightest[i] = zTop
-        
+        '''
         out_basename = str(i)+'_'+sensor_d+'.png'
         out_file = os.path.join(out_dir, out_basename)
         save_points(target, out_file, i)
-        save_sub_ply(target, plydata, os.path.join(out_dir, str(i)+'.ply'))
+        #save_sub_ply(target, plydata, os.path.join(out_dir, str(i)+'.ply'))
+        np.savetxt(os.path.join(out_dir, str(i)+'.txt'), hist[i])
+        '''
     
     return hist, heightest
 
