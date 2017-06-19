@@ -150,7 +150,7 @@ class Ply2LasConverter(Extractor):
                 logging.info("...created %s" % out_las)
                 if os.path.isfile(out_las) and out_las not in resource["local_paths"]:
                     # Send LAS output to Clowder source dataset
-                    fileid = pyclowder.files.upload_to_dataset(connector, host, secret_key, resource['parent']['id'], out_las)
+                    fileid = pyclowder.files.upload_to_dataset(connector, host, secret_key, resource['id'], out_las)
 
             created += 1
             bytes += os.path.getsize(out_las)

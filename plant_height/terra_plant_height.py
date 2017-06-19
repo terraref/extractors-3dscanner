@@ -136,7 +136,7 @@ class Ply2HeightEstimation(Extractor):
             created += 1
             bytes += os.path.getsize(out_hist)
             if out_hist not in resource["local_paths"]:
-                fileid = pyclowder.files.upload_to_dataset(connector, host, secret_key, resource['parent']['id'], out_hist)
+                fileid = pyclowder.files.upload_to_dataset(connector, host, secret_key, resource['id'], out_hist)
                 uploaded_file_ids.append(fileid)
 
         if not os.path.exists(out_top) or self.force_overwrite:
@@ -144,7 +144,7 @@ class Ply2HeightEstimation(Extractor):
             created += 1
             bytes += os.path.getsize(out_top)
             if out_top not in resource["local_paths"]:
-                fileid = pyclowder.files.upload_to_dataset(connector, host, secret_key, resource['parent']['id'], out_top)
+                fileid = pyclowder.files.upload_to_dataset(connector, host, secret_key, resource['id'], out_top)
                 uploaded_file_ids.append(fileid)
 
         # Tell Clowder this is completed so subsequent file updates don't daisy-chain
