@@ -91,6 +91,7 @@ class Ply2LasConverter(Extractor):
         starttime = datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
         created = 0
         bytes = 0
+        uploaded_file_ids = []
 
         east_ply = None
         west_ply = None
@@ -151,6 +152,7 @@ class Ply2LasConverter(Extractor):
                 if os.path.isfile(out_las) and out_las not in resource["local_paths"]:
                     # Send LAS output to Clowder source dataset
                     fileid = pyclowder.files.upload_to_dataset(connector, host, secret_key, resource['id'], out_las)
+                    uploaded_file_ids.append(fileid)
 
             created += 1
             bytes += os.path.getsize(out_las)
@@ -160,30 +162,14 @@ class Ply2LasConverter(Extractor):
             if os.path.exists(tmp_west_las):
                 os.remove(tmp_west_las)
 
+            # Tell Clowder this is completed so subsequent file updates don't daisy-chain
+            metadata = terrautils.extractors.build_metadata(host, self.extractor_info['name'], resource['id'], {
+                "files_created": [fileid]}, 'dataset')
+            pyclowder.datasets.upload_metadata(connector, host, secret_key, resource['id'], metadata)
+
             endtime = datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
-            self.logToInfluxDB(starttime, endtime, created, bytes)
-
-    def logToInfluxDB(self, starttime, endtime, filecount, bytecount):
-        # Time of the format "2017-02-10T16:09:57+00:00"
-        f_completed_ts = int(parse(endtime).strftime('%s'))*1000000000
-        f_duration = f_completed_ts - int(parse(starttime).strftime('%s'))*1000000000
-
-        client = InfluxDBClient(self.influx_host, self.influx_port, self.influx_user, self.influx_pass, self.influx_db)
-        client.write_points([{
-            "measurement": "file_processed",
-            "time": f_completed_ts,
-            "fields": {"value": f_duration}
-        }], tags={"extractor": self.extractor_info['name'], "type": "duration"})
-        client.write_points([{
-            "measurement": "file_processed",
-            "time": f_completed_ts,
-            "fields": {"value": int(filecount)}
-        }], tags={"extractor": self.extractor_info['name'], "type": "filecount"})
-        client.write_points([{
-            "measurement": "file_processed",
-            "time": f_completed_ts,
-            "fields": {"value": int(bytecount)}
-        }], tags={"extractor": self.extractor_info['name'], "type": "bytes"})
+            terrautils.extractors.log_to_influxdb(self.extractor_info['name'], self.influx_params,
+                                              starttime, endtime, created, bytes)
 
 if __name__ == "__main__":
     extractor = Ply2LasConverter()
