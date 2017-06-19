@@ -115,12 +115,14 @@ class Ply2LasConverter(Extractor):
                 in_west = west_ply.replace("/home/extractor/sites", "/data/sites")
                 tmp_east_las = "/data/east_temp.las"
                 tmp_west_las = "/data/west_temp.las"
+                merge_las = "/data/merged.las"
             else:
                 pdal_base = ""
                 in_east = east_ply
                 in_west = west_ply
                 tmp_east_las = "east_temp.las"
                 tmp_west_las = "west_temp.las"
+                merge_las = "/home/extractor/merged.las"
 
             logging.info("converting %s" % east_ply)
             subprocess.call([pdal_base+'pdal translate ' + \
@@ -139,12 +141,12 @@ class Ply2LasConverter(Extractor):
                              '--writers.las.scale_z=".000001" ' + \
                              in_west + " " + tmp_west_las], shell=True)
 
-            dock_las = "/data/merged.las"
-            logging.info("merging %s + %s into %s" % (tmp_east_las, tmp_west_las, dock_las))
+
+            logging.info("merging %s + %s into %s" % (tmp_east_las, tmp_west_las, merge_las))
             subprocess.call([pdal_base+'pdal merge ' + \
-                             tmp_east_las+' '+tmp_west_las+' '+dock_las], shell=True)
-            if os.path.exists("/home/extractor/merged.las"):
-                shutil.move("/home/extractor/merged.las", out_las)
+                             tmp_east_las+' '+tmp_west_las+' '+merge_las], shell=True)
+            if os.path.exists(merge_las):
+                shutil.move(merge_las, out_las)
                 logging.info("...created %s" % out_las)
                 if os.path.isfile(out_las) and out_las not in resource["local_paths"]:
                     # Send LAS output to Clowder source dataset
