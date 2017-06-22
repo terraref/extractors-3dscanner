@@ -122,9 +122,9 @@ class Ply2HeightEstimation(Extractor):
         if not os.path.exists(out_dir):
             os.makedirs(out_dir)
         out_hist = os.path.join(out_dir, terrautils.extractors.get_output_filename(
-                resource['dataset_info']['name'], 'npy', opts=['histogram']))
+                resource['dataset_info']['name'], 'tif', opts=['histogram']))
         out_top = os.path.join(out_dir, terrautils.extractors.get_output_filename(
-                resource['dataset_info']['name'], 'npy', opts=['highest']))
+                resource['dataset_info']['name'], 'tif', opts=['highest']))
 
         logging.info("Loading %s & calculating height information" % ply_west)
         plydata = PlyData.read(str(ply_west))
@@ -132,7 +132,7 @@ class Ply2HeightEstimation(Extractor):
         hist, highest = full_day_to_histogram.gen_height_histogram(plydata, scanDirection)
 
         if not os.path.exists(out_hist) or self.force_overwrite:
-            np.save(out_hist, hist)
+            terrautils.extractors.create_image(hist, out_hist, scaled=False)
             created += 1
             bytes += os.path.getsize(out_hist)
             if out_hist not in resource["local_paths"]:
@@ -140,12 +140,19 @@ class Ply2HeightEstimation(Extractor):
                 uploaded_file_ids.append(fileid)
 
         if not os.path.exists(out_top) or self.force_overwrite:
-            np.save(out_top, highest)
+            terrautils.extractors.create_image(highest, out_top, scaled=False)
             created += 1
             bytes += os.path.getsize(out_top)
             if out_top not in resource["local_paths"]:
                 fileid = pyclowder.files.upload_to_dataset(connector, host, secret_key, resource['id'], out_top)
                 uploaded_file_ids.append(fileid)
+
+        # TODO: add to geostreams
+        #high_value = extract_from_numpy(highest)
+        #pyclowder.geostreams.create_datapoint(connector, host, secret_key, stream_id, {
+        #    "type": "Point",
+        #    "coordinates": [sensor_latlon[1], sensor_latlon[0], 0]
+        #}, time_fmt, time_fmt, {"highest value": high_value})
 
         # Tell Clowder this is completed so subsequent file updates don't daisy-chain
         metadata = terrautils.extractors.build_metadata(host, self.extractor_info['name'], resource['id'], {
