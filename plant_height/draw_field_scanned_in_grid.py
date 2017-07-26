@@ -10,6 +10,7 @@ from glob import glob
 import matplotlib
 from matplotlib import pyplot as plt
 from plyfile import PlyData, PlyElement
+import terrautils.betydb
 
 convt = terra_common.CoordinateConverter()
 
@@ -288,7 +289,7 @@ def gen_csv_file(in_dir, out_dir):
                 csv.write(','.join(map(str, trait_list)) + '\n')
     
         csv.close()
-        submitToBety(out_file)
+        terrautils.betydb.submit_traits(out_file)
     
     
     return
@@ -342,25 +343,6 @@ def insert_height_traits_into_betydb(in_dir, out_dir):
         #submitToBety(out_file)
     
     return
-
-# BETYdb instance information for submitting output CSV (skipped if betyAPI is empty)
-
-
-def submitToBety(csvfile):
-    betyAPI = "https://terraref.ncsa.illinois.edu/bety/api/beta/traits.csv"
-    betyKey = "D49SRRPIPFhJIiJ9XOlACRlc0BHhO3kzUJrnUBS2"
-
-    if betyAPI != "":
-        sess = requests.Session()
-        print(csvfile)
-        print("%s?key=%s" % (betyAPI, betyKey))
-        r = sess.post("%s?key=%s" % (betyAPI, betyKey),  data=file(csvfile, 'rb').read(), headers={'Content-type': 'text/csv'})
-
-        if r.status_code == 200 or r.status_code == 201:
-            print("CSV successfully uploaded to BETYdb.")
-        else:
-            print("Error uploading CSV to BETYdb %s" % r.status_code)
-            print(r.text)
 
 def draw_heatmap(data, date_record, plotNum, out_dir):
     
