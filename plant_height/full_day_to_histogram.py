@@ -532,7 +532,8 @@ def gen_height_histogram_for_Roman(plydata, scanDirection, out_dir, sensor_d, ce
     
     if data.size == 0:
         return hist, heightest
-    
+
+    # TODO: Replace with getting plot bounding box instead of yRange = 32
     for i in range(0, yRange):
         ymin = (terra_common._y_row_s4[i][0]+yShift) * scaleParam
         ymax = (terra_common._y_row_s4[i][1]+yShift) * scaleParam
