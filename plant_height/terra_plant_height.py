@@ -3,7 +3,6 @@
 import datetime
 import os
 import logging
-import full_day_to_histogram
 import numpy as np
 
 from pyclowder.extractors import Extractor
@@ -11,8 +10,10 @@ from pyclowder.utils import CheckMessage
 import pyclowder.files
 import pyclowder.datasets
 import terrautils.extractors
+import terrautils.geostreams
 
 from plyfile import PlyData, PlyElement
+import full_day_to_histogram
 
 
 class Ply2HeightEstimation(Extractor):
@@ -26,9 +27,6 @@ class Ply2HeightEstimation(Extractor):
         influx_pass = os.getenv("INFLUXDB_PASSWORD", "")
 
         # add any additional arguments to parser
-        self.parser.add_argument('--output', '-o', dest="output_dir", type=str, nargs='?',
-                                 default="/home/extractor/sites/ua-mac/Level_1/scanner3DTop_plant_height",
-                                 help="root directory where timestamp & output directories will be created")
         self.parser.add_argument('--overwrite', dest="force_overwrite", type=bool, nargs='?', default=False,
                                  help="whether to overwrite output file if it already exists in output directory")
         self.parser.add_argument('--dockerpdal', dest="pdal_docker", type=bool, nargs='?', default=False,
@@ -52,7 +50,6 @@ class Ply2HeightEstimation(Extractor):
         logging.getLogger('__main__').setLevel(logging.DEBUG)
 
         # assign other arguments
-        self.output_dir = self.args.output_dir
         self.force_overwrite = self.args.force_overwrite
         self.pdal_docker = self.args.pdal_docker
         self.influx_params = {
@@ -79,11 +76,10 @@ class Ply2HeightEstimation(Extractor):
                     west_ply = p['filepath']
 
         if east_ply and west_ply:
-            out_dir = terrautils.extractors.get_output_directory(self.output_dir, resource['dataset_info']['name'])
-            out_hist = os.path.join(out_dir, terrautils.extractors.get_output_filename(
-                    resource['dataset_info']['name'], 'npy', opts=['histogram']))
-            out_top = os.path.join(out_dir, terrautils.extractors.get_output_filename(
-                    resource['dataset_info']['name'], 'npy', opts=['highest']))
+            out_hist = terrautils.sensors.get_sensor_path_by_dataset("ua-mac", "Level_1", resource['dataset_info']['name'],
+                                                                     "scanner3DTop_plant_height", 'tif', opts=['histogram'])
+            out_top = terrautils.sensors.get_sensor_path_by_dataset("ua-mac", "Level_1", resource['dataset_info']['name'],
+                                                                     "scanner3DTop_plant_height", 'tif', opts=['highest'])
             if (not self.force_overwrite) and os.path.isfile(out_hist) and os.path.isfile(out_top):
                 logging.info("...outputs already exist; skipping %s" % resource['id'])
             else:
@@ -118,13 +114,13 @@ class Ply2HeightEstimation(Extractor):
             return
 
         # Determine output locations
-        out_dir = terrautils.extractors.get_output_directory(self.output_dir, resource['dataset_info']['name'])
+        out_hist = terrautils.sensors.get_sensor_path_by_dataset("ua-mac", "Level_1", resource['dataset_info']['name'],
+                                                                 "scanner3DTop_plant_height", 'tif', opts=['histogram'])
+        out_top = terrautils.sensors.get_sensor_path_by_dataset("ua-mac", "Level_1", resource['dataset_info']['name'],
+                                                                "scanner3DTop_plant_height", 'tif', opts=['highest'])
+        out_dir = os.path.dirname(out_hist)
         if not os.path.exists(out_dir):
             os.makedirs(out_dir)
-        out_hist = os.path.join(out_dir, terrautils.extractors.get_output_filename(
-                resource['dataset_info']['name'], 'npy', opts=['histogram']))
-        out_top = os.path.join(out_dir, terrautils.extractors.get_output_filename(
-                resource['dataset_info']['name'], 'npy', opts=['highest']))
 
         logging.info("Loading %s & calculating height information" % ply_west)
         plydata = PlyData.read(str(ply_west))
@@ -132,7 +128,7 @@ class Ply2HeightEstimation(Extractor):
         hist, highest = full_day_to_histogram.gen_height_histogram(plydata, scanDirection)
 
         if not os.path.exists(out_hist) or self.force_overwrite:
-            np.save(out_hist, hist)
+            terrautils.extractors.create_image(hist, out_hist, scaled=False)
             created += 1
             bytes += os.path.getsize(out_hist)
             if out_hist not in resource["local_paths"]:
@@ -140,12 +136,36 @@ class Ply2HeightEstimation(Extractor):
                 uploaded_file_ids.append(fileid)
 
         if not os.path.exists(out_top) or self.force_overwrite:
-            np.save(out_top, highest)
+            terrautils.extractors.create_image(highest, out_top, scaled=False)
             created += 1
             bytes += os.path.getsize(out_top)
             if out_top not in resource["local_paths"]:
                 fileid = pyclowder.files.upload_to_dataset(connector, host, secret_key, resource['id'], out_top)
                 uploaded_file_ids.append(fileid)
+
+        # Prepare and submit datapoint
+        left_bounds = terrautils.extractors.calculate_gps_bounds(metadata)[0]
+        sensor_latlon = terrautils.extractors.calculate_centroid(left_bounds)
+        logging.info("sensor lat/lon: %s" % str(sensor_latlon))
+
+        fileIdList = []
+        for f in resource['files']:
+            fileIdList.append(f['id'])
+        # Format time properly, adding UTC if missing from Danforth timestamp
+        ctime = terrautils.extractors.calculate_scan_time(metadata)
+        time_obj = time.strptime(ctime, "%m/%d/%Y %H:%M:%S")
+        time_fmt = time.strftime('%Y-%m-%dT%H:%M:%S', time_obj)
+        if len(time_fmt) == 19:
+            time_fmt += "-06:00"
+
+        dpmetadata = {
+            "max_height": np.max(highest),
+            "source": host+"datasets/"+resource['id'],
+            "file_ids": ",".join(fileIdList)
+        }
+        terrautils.geostreams.create_datapoint_with_dependencies(connector, host, secret_key,
+                                                                 "Plant Height", sensor_latlon,
+                                                                 time_fmt, time_fmt, dpmetadata)
 
         # Tell Clowder this is completed so subsequent file updates don't daisy-chain
         metadata = terrautils.extractors.build_metadata(host, self.extractor_info['name'], resource['id'], {
@@ -155,6 +175,7 @@ class Ply2HeightEstimation(Extractor):
         endtime = datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
         terrautils.extractors.log_to_influxdb(self.extractor_info['name'], self.influx_params,
                                               starttime, endtime, created, bytes)
+
 
 if __name__ == "__main__":
     extractor = Ply2HeightEstimation()
