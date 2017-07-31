@@ -50,7 +50,6 @@ class Ply2LasConverter(Extractor):
         logging.getLogger('__main__').setLevel(logging.DEBUG)
 
         # assign other arguments
-        self.output_dir = self.args.output_dir
         self.force_overwrite = self.args.force_overwrite
         self.pdal_docker = self.args.pdal_docker
         self.influx_params = {
@@ -77,9 +76,8 @@ class Ply2LasConverter(Extractor):
                     west_ply = p['filepath']
 
         if east_ply and west_ply:
-            out_dir = terrautils.extractors.get_output_directory(self.output_dir, resource['name'])
-            out_name = terrautils.extractors.get_output_filename(resource['name'], 'las', opts=['merged'])
-            out_las = os.path.join(out_dir, out_name)
+            out_las = terrautils.sensors.get_sensor_path_by_dataset("ua-mac", "Level_1", resource['dataset_info']['name'],
+                                                                    "scanner3DTop_mergedlas", 'las', opts=['merged'])
             if os.path.exists(out_las) and not self.force_overwrite:
                 logging.info("output LAS file already exists; skipping %s" % resource['id'])
             else:
@@ -103,11 +101,11 @@ class Ply2LasConverter(Extractor):
                     west_ply = p
 
         # Create output in same directory as input, but check name
-        out_dir = terrautils.extractors.get_output_directory(self.output_dir, resource['name'])
+        out_las = terrautils.sensors.get_sensor_path_by_dataset("ua-mac", "Level_1", resource['dataset_info']['name'],
+                                                                "scanner3DTop_mergedlas", 'las', opts=['merged'])
+        out_dir = os.path.dirname(out_las)
         if not os.path.exists(out_dir):
             os.makedirs(out_dir)
-        out_name = terrautils.extractors.get_output_filename(resource['name'], 'las', opts=['merged'])
-        out_las = os.path.join(out_dir, out_name)
 
         if not os.path.exists(out_las) or self.force_overwrite:
             if self.args.pdal_docker:
