@@ -28,9 +28,6 @@ class heightmap(Extractor):
         influx_pass = os.getenv("INFLUXDB_PASSWORD", "")
 
         # add any additional arguments to parser
-        self.parser.add_argument('--output', '-o', dest="output_dir", type=str, nargs='?',
-                                 default="/home/extractor/sites/ua-mac/Level_1/scanner3DTop_heightmap",
-                                 help="root directory where timestamp & output directories will be created")
         self.parser.add_argument('--influxHost', dest="influx_host", type=str, nargs='?',
                                  default=influx_host, help="InfluxDB URL for logging")
         self.parser.add_argument('--influxPort', dest="influx_port", type=int, nargs='?',
@@ -50,7 +47,6 @@ class heightmap(Extractor):
         logging.getLogger('__main__').setLevel(logging.DEBUG)
 
         # assign other arguments
-        self.output_dir = self.args.output_dir
         self.influx_params = {
             "host": self.args.influx_host,
             "port": self.args.influx_port,
@@ -63,9 +59,9 @@ class heightmap(Extractor):
     def check_message(self, connector, host, secret_key, resource, parameters):
         # Check not an bmp file already
         ds_md = pyclowder.datasets.get_info(connector, host, secret_key, resource['parent']['id'])
-        out_dir = terrautils.extractors.get_output_directory(self.output_dir, ds_md['name'])
-        out_name = terrautils.extractors.get_output_filename(ds_md['name'], 'bmp', opts=['heightmap'])
-        out_bmp = os.path.join(out_dir, out_name)
+        out_bmp = terrautils.sensors.get_sensor_path_by_dataset("ua-mac", "Level_1", ds_md['name'],
+                                                                "scanner3DTop_heightmap", '', opts=['heightmap'])
+
         if os.path.exists(out_bmp):
             logging.info("output file already exists; skipping %s" % resource['id'])
             return CheckMessage.ignore
@@ -81,11 +77,11 @@ class heightmap(Extractor):
         
         # Create output in same directory as input, but check name
         ds_md = pyclowder.datasets.get_info(connector, host, secret_key, resource['parent']['id'])
-        out_dir = terrautils.extractors.get_output_directory(self.output_dir, ds_md['name'])
+        out_bmp = terrautils.sensors.get_sensor_path_by_dataset("ua-mac", "Level_1", ds_md['name'],
+                                                                "scanner3DTop_heightmap", '', opts=['heightmap'])
+        out_dir = os.path.dirname(out_bmp)
         if not os.path.exists(out_dir):
             os.makedirs(out_dir)
-        out_name = terrautils.extractors.get_output_filename(ds_md['name'], '', opts=['heightmap'])
-        out_bmp = os.path.join(out_dir, out_name)
 
         logging.info("./main -i %s -o %s" % (input_ply, out_bmp))
         subprocess.call(["./main -i %s -o %s" % (input_ply, out_bmp)], shell=True)
@@ -112,9 +108,6 @@ class heightmap(Extractor):
         endtime = datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
         terrautils.extractors.log_to_influxdb(self.extractor_info['name'], self.influx_params,
                                               starttime, endtime, created, bytes)
-
-    def replace_right(self, source, target, replacement, replacements=None):
-        return replacement.join(source.rsplit(target, replacements))
 
 if __name__ == "__main__":
     extractor = heightmap()
