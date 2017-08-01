@@ -11,6 +11,8 @@ import pyclowder.files
 import pyclowder.datasets
 import terrautils.extractors
 import terrautils.geostreams
+import terrautils.sensors
+import terrautils.metadata
 
 from plyfile import PlyData, PlyElement
 import full_day_to_histogram
