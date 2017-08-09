@@ -1,23 +1,16 @@
 #!/usr/bin/env python
 
-import datetime
 import os
 import logging
 import numpy as np
 
-
 from pyclowder.utils import CheckMessage
-
-import terrautils.extractors
-import terrautils.geostreams
-import terrautils.sensors
-from terrautils.metadata import get_extractor_metadata
-
 from pyclowder.files import upload_to_dataset
 from pyclowder.datasets import upload_metadata
 from terrautils.extractors import TerrarefExtractor, is_latest_file, create_image, \
     build_metadata, calculate_gps_bounds, calculate_centroid, calculate_scan_time
 from terrautils.geostreams import create_datapoint_with_dependencies, build_dataset_hierarchy
+from terrautils.metadata import get_extractor_metadata
 
 from plyfile import PlyData, PlyElement
 import full_day_to_histogram

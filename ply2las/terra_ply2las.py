@@ -1,18 +1,11 @@
 #!/usr/bin/env python
 
-import datetime
 import os
 import logging
 import shutil
 import subprocess
 
-from pyclowder.extractors import Extractor
 from pyclowder.utils import CheckMessage
-import pyclowder.files
-import pyclowder.datasets
-import terrautils.extractors
-import terrautils.sensors
-
 from pyclowder.files import upload_to_dataset
 from pyclowder.datasets import upload_metadata
 from terrautils.extractors import TerrarefExtractor, is_latest_file, \
