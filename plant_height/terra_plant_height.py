@@ -23,20 +23,12 @@ from plyfile import PlyData, PlyElement
 import full_day_to_histogram
 
 
-def add_local_arguments(parser):
-    # add any additional arguments to parser
-    self.parser.add_argument('--dockerpdal', dest="pdal_docker", type=bool, nargs='?', default=False,
-                             help="whether PDAL should be run inside a docker container")
-
 class Ply2HeightEstimation(TerrarefExtractor):
     def __init__(self):
         super(Ply2HeightEstimation, self).__init__()
 
         # parse command line and load default logging configuration
         self.setup(sensor="scanner3DTop_plant_height")
-
-        # assign other arguments
-        self.pdal_docker = self.args.pdal_docker
 
     # Check whether dataset already has metadata
     def check_message(self, connector, host, secret_key, resource, parameters):
@@ -143,9 +135,9 @@ class Ply2HeightEstimation(TerrarefExtractor):
                                            time_fmt, time_fmt, dpmetadata)
 
         # Tell Clowder this is completed so subsequent file updates don't daisy-chain
-        metadata = build_metadata(host, self.extractor_info['name'], resource['id'], {
+        metadata = build_metadata(host, self.extractor_info['name'], target_dsid, {
             "files_created": uploaded_file_ids}, 'dataset')
-        upload_metadata(connector, host, secret_key, resource['id'], metadata)
+        upload_metadata(connector, host, secret_key, target_dsid, metadata)
 
         self.end_message()
 
