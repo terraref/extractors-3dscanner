@@ -47,7 +47,7 @@ class Ply2LasConverter(TerrarefExtractor):
         if east_ply and west_ply:
             timestamp = resource['dataset_info']['name'].split(" - ")[1]
             out_las = self.sensors.get_sensor_path(timestamp, opts=['merged'])
-            if os.path.exists(out_las) and not self.force_overwrite:
+            if os.path.exists(out_las) and not self.overwrite:
                 logging.info("output LAS file already exists; skipping %s" % resource['id'])
             else:
                 return CheckMessage.download
@@ -72,7 +72,7 @@ class Ply2LasConverter(TerrarefExtractor):
         out_las = self.sensors.get_sensor_path(timestamp, opts=['merged'])
         self.sensors.create_sensor_path(out_las)
 
-        if not os.path.exists(out_las) or self.force_overwrite:
+        if not os.path.exists(out_las) or self.overwrite:
             if self.args.pdal_docker:
                 pdal_base = "docker run -v /home/extractor:/data pdal/pdal:1.5 "
                 in_east = east_ply.replace("/home/extractor/sites", "/data/sites")
@@ -112,9 +112,8 @@ class Ply2LasConverter(TerrarefExtractor):
                 logging.info("...created %s" % out_las)
                 if os.path.isfile(out_las) and out_las not in resource["local_paths"]:
                     target_dsid = build_dataset_hierarchy(connector, host, secret_key, self.clowderspace,
-                                                          "scanner3DTop merged LAS", timestamp[:4], timestamp[:7],
+                                                          self.sensors.get_display_name(), timestamp[:4], timestamp[:7],
                                                           timestamp[:10], leaf_ds_name=resource['dataset_info']['name'])
-
 
                     # Send LAS output to Clowder source dataset
                     fileid = upload_to_dataset(connector, host, secret_key, target_dsid, out_las)

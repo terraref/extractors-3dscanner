@@ -52,7 +52,7 @@ class heightmap(TerrarefExtractor):
         # TODO: Store root collection name in sensors.py?
         timestamp = ds_md['name'].split(" - ")[1]
         target_dsid = build_dataset_hierarchy(connector, host, secret_key, self.clowderspace,
-                                              "scanner3DTop heightmap", timestamp[:4], timestamp[:7],
+                                              self.sensors.get_display_name(), timestamp[:4], timestamp[:7],
                                               timestamp[:10], leaf_ds_name=resource['dataset_info']['name'])
 
         # the subprocess actually adds to the out_bmp string to create 2 files

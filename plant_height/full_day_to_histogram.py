@@ -451,12 +451,19 @@ def get_position(metadata):
 
 
 def get_direction(metadata):
-    try:
-        gantry_meta = metadata['lemnatec_measurement_metadata']['gantry_system_variable_metadata']
-        scan_direction = gantry_meta["scanisinpositivedirection"]
-        
-    except KeyError as err:
-        fail('Metadata file missing key: ' + err.args[0])
+    if 'lemnatec_measurement_metadata' in metadata:
+        try:
+            gantry_meta = metadata['lemnatec_measurement_metadata']['gantry_system_variable_metadata']
+            if 'scanIsInPositiveDirection' in gantry_meta:
+                scan_direction = gantry_meta["scanIsInPositiveDirection"]
+            else:
+                scan_direction = gantry_meta["scanisinpositivedirection"]
+
+        except KeyError as err:
+            fail('Metadata file missing key: ' + err.args[0])
+
+    elif 'scan_direction_is_positive' in metadata:
+        return metadata['scan_direction_is_positive']
         
     return scan_direction
 
@@ -517,10 +524,10 @@ def offset_choice(scanDirection, sensor_d):
     
     return ret
 
-def gen_height_histogram_for_Roman(plydata, scanDirection, out_dir, sensor_d, center_position):
+def gen_height_histogram_for_Roman(plydata, scanDirection, sensor_d, zheight):
     
     gantry_z_offset = 0.35
-    zGround = (3.445 - center_position[2] + gantry_z_offset)*1000
+    zGround = (3.445 - zheight + gantry_z_offset)*1000
     yRange = 32
     yShift = offset_choice(scanDirection, sensor_d)
     zOffset = 10
@@ -557,7 +564,7 @@ def gen_height_histogram_for_Roman(plydata, scanDirection, out_dir, sensor_d, ce
             hist[i][zloop] = num
             zloop = zloop + 1
         '''
-    
+
         zTop = 0;
         if len(specifiedIndex[0])!=0:
             zTop = target["z"].max()

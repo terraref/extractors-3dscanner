@@ -8,8 +8,9 @@ from pyclowder.utils import CheckMessage
 from pyclowder.files import upload_to_dataset
 from pyclowder.datasets import upload_metadata
 from terrautils.extractors import TerrarefExtractor, is_latest_file, create_image, \
-    build_metadata, calculate_gps_bounds, calculate_centroid, calculate_scan_time
-from terrautils.geostreams import create_datapoint_with_dependencies, build_dataset_hierarchy
+    build_metadata, calculate_gps_bounds, calculate_centroid, calculate_scan_time, \
+    build_dataset_hierarchy, geom_from_metadata
+from terrautils.geostreams import create_datapoint_with_dependencies
 from terrautils.metadata import get_extractor_metadata
 
 from plyfile import PlyData, PlyElement
@@ -42,7 +43,8 @@ class Ply2HeightEstimation(TerrarefExtractor):
             timestamp = resource['dataset_info']['name'].split(" - ")[1]
             out_hist = self.sensors.get_sensor_path(timestamp, opts=['histogram'], ext='.tif')
             out_top = self.sensors.get_sensor_path(timestamp, opts=['highest'], ext='.tif')
-            if (not self.force_overwrite) and os.path.isfile(out_hist) and os.path.isfile(out_top):
+
+            if (not self.overwrite) and os.path.isfile(out_hist) and os.path.isfile(out_top):
                 logging.info("...outputs already exist; skipping %s" % resource['id'])
             else:
                 return CheckMessage.download
@@ -59,7 +61,7 @@ class Ply2HeightEstimation(TerrarefExtractor):
             # First check metadata attached to dataset in Clowder for item of interest
             if fname.endswith('_dataset_metadata.json'):
                 all_dsmd = full_day_to_histogram.load_json(fname)
-                metadata = get_extractor_metadata(all_dsmd)
+                metadata = get_extractor_metadata(all_dsmd, self.extractor_info['name'])
             # Otherwise, check if metadata was uploaded as a .json file
             elif fname.endswith('_metadata.json') and fname.find('/_metadata.json') == -1 and metadata is None:
                 metadata = full_day_to_histogram.lower_keys(full_day_to_histogram.load_json(fname))
@@ -73,30 +75,35 @@ class Ply2HeightEstimation(TerrarefExtractor):
 
         # Determine output locations
         timestamp = resource['dataset_info']['name'].split(" - ")[1]
-        out_hist = self.sensors.get_sensor_path(timestamp, opts=['histogram'], ext='.tif')
-        out_top = self.sensors.get_sensor_path(timestamp, opts=['highest'], ext='.tif')
-        self.sensors.create_sensor_path(out_hist)
+        out_hist = self.sensors.create_sensor_path(timestamp, opts=['histogram'], ext='.npy')
+        out_top = self.sensors.create_sensor_path(timestamp, opts=['highest'], ext='.npy')
+
+        logging.info("Loading %s & calculating height information" % ply_west)
+
+        # GEOM DATA
+        gantry_x, gantry_y, gantry_z, cambox_x, cambox_y, cambox_z, fov_x, fov_y = geom_from_metadata(metadata)
+        z_height = gantry_z + cambox_z
+        plydata = PlyData.read(str(ply_west))
+        scanDirection = full_day_to_histogram.get_direction(metadata)
+        hist, highest = full_day_to_histogram.gen_height_histogram_for_Roman(plydata, scanDirection, 'w', z_height)
 
         # TODO: Store root collection name in sensors.py?
         target_dsid = build_dataset_hierarchy(connector, host, secret_key, self.clowderspace,
-                                              "scanner3DTop plant height", timestamp[:4], timestamp[:7],
+                                              self.sensors.get_display_name(), timestamp[:4], timestamp[:7],
                                               timestamp[:10], leaf_ds_name=resource['dataset_info']['name'])
 
-        logging.info("Loading %s & calculating height information" % ply_west)
-        plydata = PlyData.read(str(ply_west))
-        scanDirection = full_day_to_histogram.get_direction(metadata)
-        hist, highest = full_day_to_histogram.gen_height_histogram(plydata, scanDirection)
-
-        if not os.path.exists(out_hist) or self.force_overwrite:
-            create_image(hist, out_hist, scaled=False)
+        if not os.path.exists(out_hist) or self.overwrite:
+            np.save(out_hist, hist)
+            #create_image(hist, out_hist, scaled=False)
             self.created += 1
             self.bytes += os.path.getsize(out_hist)
             if out_hist not in resource["local_paths"]:
                 fileid = upload_to_dataset(connector, host, secret_key, target_dsid, out_hist)
                 uploaded_file_ids.append(fileid)
 
-        if not os.path.exists(out_top) or self.force_overwrite:
-            create_image(highest, out_top, scaled=False)
+        if not os.path.exists(out_top) or self.overwrite:
+            np.save(out_top, highest)
+            #create_image(highest, out_top, scaled=False)
             self.created += 1
             self.bytes += os.path.getsize(out_top)
             if out_top not in resource["local_paths"]:
