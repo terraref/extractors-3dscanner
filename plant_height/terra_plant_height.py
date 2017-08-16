@@ -44,6 +44,9 @@ class Ply2HeightEstimation(TerrarefExtractor):
             out_hist = self.sensors.get_sensor_path(timestamp, opts=['histogram'], ext='.tif')
             out_top = self.sensors.get_sensor_path(timestamp, opts=['highest'], ext='.tif')
 
+            logging.info(out_hist)
+            logging.info(out_top)
+
             if (not self.overwrite) and os.path.isfile(out_hist) and os.path.isfile(out_top):
                 logging.info("...outputs already exist; skipping %s" % resource['id'])
             else:
@@ -79,10 +82,89 @@ class Ply2HeightEstimation(TerrarefExtractor):
         out_top = self.sensors.create_sensor_path(timestamp, opts=['highest'], ext='.npy')
 
         logging.info("Loading %s & calculating height information" % ply_west)
+        metadata = {
+            "lemnatec_measurement_metadata": {
+                "user_given_metadata": {
+                    "experiment title": "Wheat field experiment 2",
+                    "experiment responsible": "to be named",
+                    "project": "TERRA-REF",
+                    "instrument": "gantry at Maricopa phenotyping facility",
+                    "location": "Maricopa phenotyping facility",
+                    "date of sowing": "2017-04-20",
+                    "date of emergence": "2017-04-26",
+                    "campaign": "mid season canopy growth",
+                    "mission or scan": ""
+                },
+                "gantry_system_fixed_metadata": {
+                    "system manufacturer": "LemnaTec Corp., 4240 Duncan Ave, Saint Louis, MO 63110",
+                    "LemnaTec ProjNo": "7100019",
+                    "LemnaTecs field scanalzyer no": "2",
+                    "project responsible": "ben.niehaus@lemnatec.de",
+                    "date of installation": "april 2016",
+                    "system scan area n-s [m]": "211",
+                    "system scan area e-w [m]": "23.125",
+                    "system scan area height [m]": "8",
+                    "funded by": "ARPA-E",
+                    "trivials": "biggest agriculture robot in the world",
+                    "date of handover": "15-12-2016"
+                },
+                "gantry_system_variable_metadata": {
+                    "time": "07/01/2017 00:00:54",
+                    "position x [m]": "94.099",
+                    "position y [m]": "22.135",
+                    "position z [m]": "4.615",
+                    "speed x [m/s]": "0",
+                    "speed y [m/s]": "0",
+                    "speed z [m/s]": "0",
+                    "camera box light 1 is on": "False",
+                    "camera box light 2 is on": "False",
+                    "camera box light 3 is on": "False",
+                    "camera box light 4 is on": "False",
+                    "Script path on local disk": "C:\\LemnaTec\\StoredScripts\\3D_Scan_Field_SouthStart_033MperS.cs",
+                    "Script copy path on FTP server": "ftp://10.160.21.2//gantry_data/LemnaTec/ScriptBackup/3D_Scan_Field_SouthStart_033MperS_470164ba-ad9f-4956-9a51-3e651b3e6c64.cs",
+                    "scanIsInPositiveDirection": "False",
+                    "scanDistance [m]": "21.8",
+                    "scanSpeed [m/s]": "0.33",
+                    "scanMode": "Triggered",
+                    "sensor setting file path": "c:\\LemnaTec\\StoredSensorSettings\\3dTop.xml"
+                },
+                "sensor_fixed_metadata": {
+                    "sensor manufacturer": "Fraunhofer-Entwicklungszentrum R?ntgentechnik EZRT, Ber?hrungslose Mess- und Pr?fsysteme, www.iis.fraunhofer.de",
+                    "sensor product name": "Custom made 3D Scanner",
+                    "sensor east serial number": "S215-1030",
+                    "sensor west serial number": "S215-1036",
+                    "sensor description": "two laser / camera combinations",
+                    "sensor purpose": "measure 3D surface topology",
+                    "laser emission wavelenght [nm]": "810",
+                    "laser emission energy [W]": "2",
+                    "location in gantry system": "camera box, facing ground",
+                    "scanner east location in camera box x [m]": "2.070",
+                    "scanner east location in camera box y [m]": "0.306",
+                    "scanner east location in camera box z [m]": "1.135",
+                    "scanner west location in camera box x [m]": "2.070",
+                    "scanner west location in camera box y [m]": "2.726",
+                    "scanner west location in camera box z [m]": "1.135",
+                    "field of view y [m]": "0.800",
+                    "Calibration available": "true",
+                    "output data format": ".ply open file format",
+                    "sensor id": "3d camera box"
+                },
+                "sensor_variable_metadata": {
+                    "current setting Exposure [microS]": "70",
+                    "current setting Calculate 3D files": "0",
+                    "current setting Laser detection threshold": "512",
+                    "current setting Scanlines per output file": "100000",
+                    "current setting Scan direction (automatically set at runtime)": "0",
+                    "current setting Scan distance (automatically set at runtime) [mm]": "21800",
+                    "current setting Scan speed (automatically set at runtime) [microMeter/s]": "100000"
+                }
+            }
+        }
 
         # GEOM DATA
-        gantry_x, gantry_y, gantry_z, cambox_x, cambox_y, cambox_z, fov_x, fov_y = geom_from_metadata(metadata)
-        z_height = gantry_z + cambox_z
+        # gantry_x, gantry_y, gantry_z, cambox_x, cambox_y, cambox_z, fov_x, fov_y = geom_from_metadata(metadata)
+        # z_height = gantry_z + cambox_z
+        z_height = 4.615 + 1.135
         plydata = PlyData.read(str(ply_west))
         scanDirection = full_day_to_histogram.get_direction(metadata)
         hist, highest = full_day_to_histogram.gen_height_histogram_for_Roman(plydata, scanDirection, 'w', z_height)
@@ -135,7 +217,7 @@ class Ply2HeightEstimation(TerrarefExtractor):
                                            time_fmt, time_fmt, dpmetadata)
 
         # Tell Clowder this is completed so subsequent file updates don't daisy-chain
-        metadata = build_metadata(host, self.extractor_info['name'], target_dsid, {
+        metadata = build_metadata(host, self.extractor_info, target_dsid, {
             "files_created": uploaded_file_ids}, 'dataset')
         upload_metadata(connector, host, secret_key, target_dsid, metadata)
 
