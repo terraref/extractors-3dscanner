@@ -462,8 +462,8 @@ def get_direction(metadata):
         except KeyError as err:
             fail('Metadata file missing key: ' + err.args[0])
 
-    elif 'scan_direction_is_positive' in metadata:
-        return metadata['scan_direction_is_positive']
+    elif 'terraref_cleaned_metadata' in metadata and metadata['terraref_cleaned_metadata']:
+        return metadata['gantry_variable_metadata']['scan_direction_is_positive']
         
     return scan_direction
 
