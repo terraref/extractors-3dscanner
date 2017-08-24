@@ -38,14 +38,6 @@ RUN cd /home/extractor \
     && apt-get install -y python-gdal \
     && pip install --upgrade pip setuptools \
     && rm -rf /var/lib/apt/lists/*
-# Install pyclowder and terrautils
-RUN cd /home/extractor \
-    && git clone https://opensource.ncsa.illinois.edu/bitbucket/scm/cats/pyclowder2.git \
-    && pip install --upgrade -r pyclowder2/requirements.txt \
-    && pip install --upgrade /home/extractor/pyclowder2 \
-    && git clone https://github.com/terraref/terrautils.git \
-    && pip install --upgrade -r terrautils/requirements.txt \
-    && pip install --upgrade /home/extractor/terrautils
 
 RUN mkdir -p /usr/src/app
 WORKDIR /usr/src/app
@@ -153,6 +145,16 @@ RUN add-apt-repository ppa:v-launchpad-jochen-sprickerhof-de/pcl \
 
 RUN pip install -U requests[security] pyopenssl ndg-httpsclient pyasn1 cython
 RUN pip install numpy git+http://github.com/strawlab/python-pcl.git#egg=pcl
+
+# Install pyclowder and terrautils
+RUN cd /home/extractor \
+    && git clone https://opensource.ncsa.illinois.edu/bitbucket/scm/cats/pyclowder2.git \
+    && pip install --upgrade -r pyclowder2/requirements.txt \
+    && pip install --upgrade /home/extractor/pyclowder2 \
+    && git clone https://github.com/terraref/terrautils.git \
+    && cd terrautils && git checkout terrautils_final_prep && cd .. \
+    && pip install --upgrade -r terrautils/requirements.txt \
+    && pip install --upgrade /home/extractor/terrautils
 
 # command to run when starting docker
 COPY entrypoint.sh extractor_info.json *.py *.cpp main PCLDLL.h CMakeLists.txt /home/extractor/

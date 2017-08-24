@@ -112,8 +112,9 @@ class Ply2LasConverter(TerrarefExtractor):
                 logging.info("...created %s" % out_las)
                 if os.path.isfile(out_las) and out_las not in resource["local_paths"]:
                     target_dsid = build_dataset_hierarchy(connector, host, secret_key, self.clowderspace,
-                                                          self.sensors.get_display_name(), timestamp[:4], timestamp[:7],
-                                                          timestamp[:10], leaf_ds_name=resource['dataset_info']['name'])
+                                                          self.sensors.get_display_name(),
+                                                          timestamp[:4], timestamp[5:7],timestamp[8:10],
+                                                          leaf_ds_name=self.sensors.get_display_name()+' - '+timestamp)
 
                     # Send LAS output to Clowder source dataset
                     fileid = upload_to_dataset(connector, host, secret_key, target_dsid, out_las)
