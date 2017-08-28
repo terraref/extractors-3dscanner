@@ -8,12 +8,15 @@ This extractor will trigger when a PLY file is uploaded into Clowder. It will cr
 import os
 import logging
 import subprocess
+import numpy
+from PIL import Image
 
 from pyclowder.utils import CheckMessage
-from pyclowder.datasets import get_info, upload_metadata
+from pyclowder.datasets import get_info, upload_metadata, download_metadata
 from pyclowder.files import upload_to_dataset
 from terrautils.extractors import TerrarefExtractor, is_latest_file, build_dataset_hierarchy, \
-    build_metadata
+    build_metadata, create_geotiff, calculate_gps_bounds
+from terrautils.metadata import get_terraref_metadata
 
 
 class heightmap(TerrarefExtractor):
@@ -29,9 +32,9 @@ class heightmap(TerrarefExtractor):
         ds_md = get_info(connector, host, secret_key, resource['parent']['id'])
         timestamp = ds_md['name'].split(" - ")[1]
         ply_side = 'west' if resource['name'].find('west') > -1 else 'east'
-        out_bmp = self.sensors.get_sensor_path(timestamp, opts=[ply_side])
+        out_tif = self.sensors.get_sensor_path(timestamp, opts=[ply_side])
 
-        if os.path.exists(out_bmp):
+        if os.path.exists(out_tif):
             logging.info("output file already exists; skipping %s" % resource['id'])
             return CheckMessage.ignore
         else:
@@ -44,39 +47,58 @@ class heightmap(TerrarefExtractor):
         
         # Create output in same directory as input, but check name
         ds_md = get_info(connector, host, secret_key, resource['parent']['id'])
+        terra_md = get_terraref_metadata(download_metadata(connector, host, secret_key,
+                                                           resource['parent']['id']), 'scanner3DTop')
         timestamp = ds_md['name'].split(" - ")[1]
         ply_side = 'west' if resource['name'].find('west') > -1 else 'east'
-        out_bmp = self.sensors.create_sensor_path(timestamp, ext='', opts=[ply_side])
-        mask_bmp = out_bmp.replace(".bmp", "_mask.bmp")
 
+        gps_bounds = calculate_gps_bounds(terra_md, 'scanner3DTop', ply_side)
+        out_tif = self.sensors.create_sensor_path(timestamp, ext='', opts=[ply_side])
+        mask_tif = out_tif.replace(".tif", "_mask.tif")
+        out_bmp = out_tif.replace(".tif", ".bmp")
+        mask_bmp = out_tif.replace(".tif", "_mask.bmp")
+        files_created = []
+
+        # Create BMPs first
         logging.info("./main -i %s -o %s" % (input_ply, out_bmp.replace(".bmp", "")))
         subprocess.call(["./main -i %s -o %s" % (input_ply, out_bmp.replace(".bmp", ""))], shell=True)
 
-        files_created = []
+        # Then convert BMP images to GeoTIFFs
+        with Image.open(out_bmp) as bmp:
+            px_array = numpy.array(bmp)
+            create_geotiff(px_array, gps_bounds, out_tif)
+        with Image.open(mask_bmp) as bmp:
+            px_array = numpy.array(bmp)
+            create_geotiff(px_array, gps_bounds, mask_tif)
 
-        print(out_bmp)
-        print(mask_bmp)
-
-        print(os.path.isfile(out_bmp))
-        print(os.path.isfile(mask_bmp))
-
-        # the subprocess actually adds to the out_bmp string to create 2 files
+        # Upload all 4 outputs
         if os.path.isfile(out_bmp):
             self.created += 1
             self.bytes += os.path.getsize(out_bmp)
             # Send bmp output to Clowder source dataset if not already pointed to
             if out_bmp not in resource["local_paths"]:
-                print("uploading %s to dataset" % out_bmp)
                 fileid = upload_to_dataset(connector, host, secret_key, resource['parent']['id'], out_bmp)
                 files_created.append(fileid)
-
         if os.path.isfile(mask_bmp):
             self.created += 1
             self.bytes += os.path.getsize(mask_bmp)
             # Send bmp output to Clowder source dataset if not already pointed to
             if mask_bmp not in resource["local_paths"]:
-                print("uploading %s to dataset" % mask_bmp)
                 fileid = upload_to_dataset(connector, host, secret_key, resource['parent']['id'], mask_bmp)
+                files_created.append(fileid)
+        if os.path.isfile(out_tif):
+            self.created += 1
+            self.bytes += os.path.getsize(out_tif)
+            # Send bmp output to Clowder source dataset if not already pointed to
+            if out_tif not in resource["local_paths"]:
+                fileid = upload_to_dataset(connector, host, secret_key, resource['parent']['id'], out_tif)
+                files_created.append(fileid)
+        if os.path.isfile(mask_tif):
+            self.created += 1
+            self.bytes += os.path.getsize(mask_tif)
+            # Send bmp output to Clowder source dataset if not already pointed to
+            if mask_tif not in resource["local_paths"]:
+                fileid = upload_to_dataset(connector, host, secret_key, resource['parent']['id'], mask_tif)
                 files_created.append(fileid)
 
         # Tell Clowder this is completed so subsequent file updates don't daisy-chain
