@@ -153,9 +153,9 @@ RUN apt-get update \
 
 RUN add-apt-repository ppa:v-launchpad-jochen-sprickerhof-de/pcl \
     && apt-get update \
-    && apt-get install -y libpcl-all libffi-dev libssl-dev
+    && apt-get install -y libffi-dev libssl-dev libpcl-all
 
-RUN pip install -U requests[security] pyopenssl ndg-httpsclient pyasn1 cython
+RUN pip install -U requests[security] pyopenssl ndg-httpsclient pyasn1 cython==0.21
 RUN pip install numpy git+http://github.com/strawlab/python-pcl.git#egg=pcl
 
 # command to run when starting docker
