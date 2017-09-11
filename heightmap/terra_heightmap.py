@@ -51,6 +51,7 @@ class heightmap(TerrarefExtractor):
                                                            resource['parent']['id']), 'scanner3DTop')
         timestamp = ds_md['name'].split(" - ")[1]
         ply_side = 'west' if resource['name'].find('west') > -1 else 'east'
+        scandirection = int(terra_md['sensor_variable_metadata']['scan_direction'])
 
         gps_bounds = calculate_gps_bounds(terra_md, 'scanner3DTop', ply_side)
         out_tif = self.sensors.create_sensor_path(timestamp, ext='', opts=[ply_side])
@@ -63,12 +64,20 @@ class heightmap(TerrarefExtractor):
         logging.info("./main -i %s -o %s" % (input_ply, out_bmp.replace(".bmp", "")))
         subprocess.call(["./main -i %s -o %s" % (input_ply, out_bmp.replace(".bmp", ""))], shell=True)
 
-        # Then convert BMP images to GeoTIFFs
+        # Then convert BMP images to GeoTIFFs (flipping negative direction scans 180 degress)
         with Image.open(out_bmp) as bmp:
             px_array = numpy.array(bmp)
+            if scandirection == 1:
+                px_array = numpy.rot90(px_array, 3)
+            else:
+                px_array = numpy.rot90(px_array, 1)
             create_geotiff(px_array, gps_bounds, out_tif)
         with Image.open(mask_bmp) as bmp:
             px_array = numpy.array(bmp)
+            if scandirection == 1:
+                px_array = numpy.rot90(px_array, 3)
+            else:
+                px_array = numpy.rot90(px_array, 1)
             create_geotiff(px_array, gps_bounds, mask_tif)
 
         # Upload all 4 outputs

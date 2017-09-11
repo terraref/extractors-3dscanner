@@ -540,6 +540,13 @@ def gen_height_histogram_for_Roman(plydata, scanDirection, sensor_d, zheight):
     if data.size == 0:
         return hist, heightest
 
+    # plot_list = get_plots_from_bety
+    # for each plot in plot_list...
+    #   is the plot inside the PLY boundary?
+    #       if yes, clip the PLY point cloud to that plot
+    #           plydata = clipped_ply_data
+    #           give PLY data below
+
     # TODO: Replace with getting plot bounding box instead of yRange = 32
     for i in range(0, yRange):
         ymin = (terra_common._y_row_s4[i][0]+yShift) * scaleParam

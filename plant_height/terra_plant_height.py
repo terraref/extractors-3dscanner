@@ -2,7 +2,7 @@
 
 import os
 import logging
-import time
+import json
 import numpy as np
 
 from pyclowder.utils import CheckMessage
@@ -42,8 +42,8 @@ class Ply2HeightEstimation(TerrarefExtractor):
 
         if east_ply and west_ply:
             timestamp = resource['dataset_info']['name'].split(" - ")[1]
-            out_hist = self.sensors.get_sensor_path(timestamp, opts=['histogram'], ext='.tif')
-            out_top = self.sensors.get_sensor_path(timestamp, opts=['highest'], ext='.tif')
+            out_hist = self.sensors.get_sensor_path(timestamp, opts=['histogram'], ext='.json')
+            out_top = self.sensors.get_sensor_path(timestamp, opts=['highest'], ext='.json')
 
             if (not self.overwrite) and os.path.isfile(out_hist) and os.path.isfile(out_top):
                 logging.info("...outputs already exist; skipping %s" % resource['id'])
@@ -76,8 +76,8 @@ class Ply2HeightEstimation(TerrarefExtractor):
 
         # Determine output locations
         timestamp = resource['dataset_info']['name'].split(" - ")[1]
-        out_hist = self.sensors.create_sensor_path(timestamp, opts=['histogram'], ext='.npy')
-        out_top = self.sensors.create_sensor_path(timestamp, opts=['highest'], ext='.npy')
+        out_hist = self.sensors.create_sensor_path(timestamp, opts=['histogram'], ext='.json')
+        out_top = self.sensors.create_sensor_path(timestamp, opts=['highest'], ext='.json')
 
         logging.info("Loading %s & calculating height information" % ply_west)
         gantry_x, gantry_y, gantry_z, cambox_x, cambox_y, cambox_z, fov_x, fov_y = geom_from_metadata(metadata, side='west')
@@ -90,10 +90,14 @@ class Ply2HeightEstimation(TerrarefExtractor):
         logging.info("sensor lat/lon: %s" % str(sensor_latlon))
 
         hist, highest = full_day_to_histogram.gen_height_histogram_for_Roman(plydata, scanDirection, 'w', z_height)
+        # Convert numpy arrays to JSON
+        highest_json = highest.reshape(1,32).tolist()[0]
+        hist_json = hist.tolist()
 
         if not os.path.exists(out_hist) or self.overwrite:
-            np.save(out_hist, hist)
-            #create_image(hist, out_hist, scaled=False)
+            #np.save(out_hist, hist)
+            with open(out_hist, 'w') as o:
+                json.dump(hist_json, o, indent=4)
             self.created += 1
             self.bytes += os.path.getsize(out_hist)
             if out_hist not in resource["local_paths"]:
@@ -101,13 +105,17 @@ class Ply2HeightEstimation(TerrarefExtractor):
                 uploaded_file_ids.append(fileid)
 
         if not os.path.exists(out_top) or self.overwrite:
-            np.save(out_top, highest)
-            #create_image(highest, out_top, scaled=False)
+            #np.save(out_top, highest)
+            with open(out_top, 'w') as o:
+                json.dump(highest_json, o, indent=4)
             self.created += 1
             self.bytes += os.path.getsize(out_top)
             if out_top not in resource["local_paths"]:
                 fileid = upload_to_dataset(connector, host, secret_key, resource['id'], out_top)
                 uploaded_file_ids.append(fileid)
+
+        # TODO: Submit highest value histogram to BETYdb as a trait
+
 
         # Prepare and submit datapoint
         fileIdList = []
@@ -115,9 +123,6 @@ class Ply2HeightEstimation(TerrarefExtractor):
             fileIdList.append(f['id'])
         # Format time properly, adding UTC if missing from Danforth timestamp
         ctime = calculate_scan_time(metadata)
-        #time_obj = time.strptime(ctime, "%Y-%m-%dT%H:%M:%S+%Z")
-        #time_fmt = time.strftime('%Y-%m-%dT%H:%M:%S', time_obj)
-        #if len(ctime) == 19: ctime += "-06:00"
         dpmetadata = {
             "max_height": np.max(highest),
             "source": host+"datasets/"+resource['id'],
