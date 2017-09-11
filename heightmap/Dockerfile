@@ -153,10 +153,18 @@ RUN apt-get update \
 
 RUN add-apt-repository ppa:v-launchpad-jochen-sprickerhof-de/pcl \
     && apt-get update \
-    && apt-get install -y libffi-dev libssl-dev libpcl-all
+    && apt-get install -y libffi-dev \
+        libssl-dev \
+        libpcl-all
 
-RUN pip install -U requests[security] pyopenssl ndg-httpsclient pyasn1 cython==0.21
-RUN pip install numpy git+http://github.com/strawlab/python-pcl.git#egg=pcl
+RUN apt-get install -y build-essential \
+    && pip install -U requests[security] \
+        pyopenssl \
+        ndg-httpsclient \
+        pyasn1 \
+        cython
+
+RUN pip install git+http://github.com/strawlab/python-pcl.git
 
 # command to run when starting docker
 COPY entrypoint.sh extractor_info.json *.py *.cpp main PCLDLL.h CMakeLists.txt /home/extractor/
