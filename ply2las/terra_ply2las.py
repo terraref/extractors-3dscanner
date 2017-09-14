@@ -133,7 +133,7 @@ class Ply2LasConverter(TerrarefExtractor):
 
             # Tell Clowder this is completed so subsequent file updates don't daisy-chain
             metadata = build_metadata(host, self.extractor_info, resource['id'], {
-                "files_created": [urljoin(host, "/files/") + fileid]}, 'dataset')
+                "files_created": [host + ("" if host.endswith("/") else "/") + "files/" + fileid]}, 'dataset')
             upload_metadata(connector, host, secret_key, resource['id'], metadata)
 
             # Upload original Lemnatec metadata to new Level_1 dataset
