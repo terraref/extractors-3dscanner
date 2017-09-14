@@ -138,7 +138,7 @@ class Ply2LasConverter(TerrarefExtractor):
 
             # Upload original Lemnatec metadata to new Level_1 dataset
             md = get_terraref_metadata(all_dsmd)
-            md['raw_data_source'] = urljoin(host, "/datasets/") + resource['id']
+            md['raw_data_source'] = host + ("" if host.endswith("/") else "/") + "datasets/" + resource['id']
             lemna_md = build_metadata(host, self.extractor_info, target_dsid, md, 'dataset')
             upload_metadata(connector, host, secret_key, target_dsid, lemna_md)
 
