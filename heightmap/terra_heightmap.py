@@ -15,8 +15,9 @@ from pyclowder.utils import CheckMessage
 from pyclowder.datasets import get_info, upload_metadata, download_metadata
 from pyclowder.files import upload_to_dataset
 from terrautils.extractors import TerrarefExtractor, is_latest_file, build_dataset_hierarchy, \
-    build_metadata, create_geotiff, calculate_gps_bounds
+    build_metadata
 from terrautils.metadata import get_terraref_metadata
+from terraref.formats import create_geotiff
 
 
 class heightmap(TerrarefExtractor):
@@ -53,7 +54,7 @@ class heightmap(TerrarefExtractor):
         ply_side = 'west' if resource['name'].find('west') > -1 else 'east'
         scandirection = int(terra_md['sensor_variable_metadata']['scan_direction'])
 
-        gps_bounds = calculate_gps_bounds(terra_md, 'scanner3DTop', ply_side)
+        gps_bounds = terra_md['spatial_metadata'][ply_side]['bounding_box']
         out_tif = self.sensors.create_sensor_path(timestamp, ext='', opts=[ply_side])
         mask_tif = out_tif.replace(".tif", "_mask.tif")
         out_bmp = out_tif.replace(".tif", ".bmp")
@@ -68,16 +69,16 @@ class heightmap(TerrarefExtractor):
         with Image.open(out_bmp) as bmp:
             px_array = numpy.array(bmp)
             if scandirection == 1:
-                px_array = numpy.rot90(px_array, 3)
-            else:
                 px_array = numpy.rot90(px_array, 1)
+            else:
+                px_array = numpy.rot90(px_array, 3)
             create_geotiff(px_array, gps_bounds, out_tif)
         with Image.open(mask_bmp) as bmp:
             px_array = numpy.array(bmp)
             if scandirection == 1:
-                px_array = numpy.rot90(px_array, 3)
-            else:
                 px_array = numpy.rot90(px_array, 1)
+            else:
+                px_array = numpy.rot90(px_array, 3)
             create_geotiff(px_array, gps_bounds, mask_tif)
 
         # Upload all 4 outputs

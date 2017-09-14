@@ -4,12 +4,14 @@ import os
 import logging
 import shutil
 import subprocess
+from urlparse import urljoin
 
 from pyclowder.utils import CheckMessage
 from pyclowder.files import upload_to_dataset
 from pyclowder.datasets import upload_metadata
+from terrautils.metadata import get_terraref_metadata
 from terrautils.extractors import TerrarefExtractor, is_latest_file, \
-    build_dataset_hierarchy, build_metadata
+    build_dataset_hierarchy, build_metadata, load_json_file
 
 
 def add_local_arguments(parser):
@@ -24,7 +26,7 @@ class Ply2LasConverter(TerrarefExtractor):
         add_local_arguments(self.parser)
 
         # parse command line and load default logging configuration
-        self.setup(sensor="scanner3DTop_mergedlas")
+        self.setup(sensor="laser3d_mergedlas")
 
         # assign other arguments
         self.pdal_docker = self.args.pdal_docker
@@ -46,7 +48,7 @@ class Ply2LasConverter(TerrarefExtractor):
 
         if east_ply and west_ply:
             timestamp = resource['dataset_info']['name'].split(" - ")[1]
-            out_las = self.sensors.get_sensor_path(timestamp, opts=['merged'])
+            out_las = self.sensors.get_sensor_path(timestamp)
             if os.path.exists(out_las) and not self.overwrite:
                 logging.info("output LAS file already exists; skipping %s" % resource['id'])
             else:
@@ -66,11 +68,12 @@ class Ply2LasConverter(TerrarefExtractor):
                     east_ply = p
                 elif p.find("west") > -1:
                     west_ply = p
+            elif p.endswith('_dataset_metadata.json'):
+                all_dsmd = load_json_file(p)
 
         # Create output in same directory as input, but check name
         timestamp = resource['dataset_info']['name'].split(" - ")[1]
-        out_las = self.sensors.get_sensor_path(timestamp, opts=['merged'])
-        self.sensors.create_sensor_path(out_las)
+        out_las = self.sensors.create_sensor_path(timestamp)
 
         if not os.path.exists(out_las) or self.overwrite:
             if self.args.pdal_docker:
@@ -129,9 +132,15 @@ class Ply2LasConverter(TerrarefExtractor):
                 os.remove(tmp_west_las)
 
             # Tell Clowder this is completed so subsequent file updates don't daisy-chain
-            metadata = build_metadata(host, self.extractor_info, target_dsid, {
-                "files_created": [fileid]}, 'dataset')
-            upload_metadata(connector, host, secret_key, target_dsid, metadata)
+            metadata = build_metadata(host, self.extractor_info, resource['id'], {
+                "files_created": [urljoin(host, "/files/") + fileid]}, 'dataset')
+            upload_metadata(connector, host, secret_key, resource['id'], metadata)
+
+            # Upload original Lemnatec metadata to new Level_1 dataset
+            md = get_terraref_metadata(all_dsmd)
+            md['raw_data_source'] = urljoin(host, "/datasets/") + resource['id']
+            lemna_md = build_metadata(host, self.extractor_info, target_dsid, md, 'dataset')
+            upload_metadata(connector, host, secret_key, target_dsid, lemna_md)
 
             self.end_message()
 

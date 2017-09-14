@@ -34,11 +34,13 @@ RUN useradd -u 49044 extractor \
     && pip install --upgrade setuptools \
     && rm -rf /var/lib/apt/lists/*
 
-# Install pyclowder and terrautils
+# Install pyclowder
 RUN cd /home/extractor \
     && git clone https://opensource.ncsa.illinois.edu/bitbucket/scm/cats/pyclowder2.git \
     && pip install --upgrade -r pyclowder2/requirements.txt \
-    && pip install --upgrade /home/extractor/pyclowder2 \
+    && pip install --upgrade /home/extractor/pyclowder2
+# Install terrautils
+RUN cd /home/extractor \
     && git clone https://github.com/terraref/terrautils.git \
     && pip install --upgrade -r terrautils/requirements.txt \
     && pip install --upgrade /home/extractor/terrautils
