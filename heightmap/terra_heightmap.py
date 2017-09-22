@@ -15,8 +15,8 @@ from pyclowder.utils import CheckMessage
 from pyclowder.datasets import get_info, upload_metadata, download_metadata
 from pyclowder.files import upload_to_dataset
 from terrautils.extractors import TerrarefExtractor, is_latest_file, build_dataset_hierarchy, \
-    build_metadata
-from terrautils.metadata import get_terraref_metadata
+    build_metadata, load_json_file
+from terrautils.metadata import get_terraref_metadata, clean_metadata, get_sensor_fixed_metadata
 from terrautils.formats import create_geotiff
 
 
@@ -35,14 +35,21 @@ class heightmap(TerrarefExtractor):
         ply_side = 'west' if resource['name'].find('west') > -1 else 'east'
         out_tif = self.sensors.get_sensor_path(timestamp, opts=[ply_side])
 
-        terra_md = get_terraref_metadata(download_metadata(connector, host, secret_key,
-                                                           resource['parent']['id']))
-        if terra_md == {}:
-            logging.info("no TERRA-REF metadata found; skipping %s" % resource['id'])
-            return CheckMessage.ignore
-
         if os.path.exists(out_tif):
             logging.info("output file already exists; skipping %s" % resource['id'])
+            return CheckMessage.ignore
+
+        # Make sure we have necessary metadata
+        terra_md = get_terraref_metadata(download_metadata(connector, host, secret_key, resource['parent']['id']))
+        if terra_md == {}:
+            # Check for metadata.json file in equivalent raw_data directory
+            # TODO: Update pipeline to account for this instead
+            ply_dir = os.path.dirname(resource['local_paths'][0])
+            md_dir = ply_dir.replace("Level_1", "raw_data")
+            for mdf in os.listdir(md_dir):
+                if mdf.endswith("metadata.json"):
+                    return CheckMessage.download
+            logging.info("no TERRA-REF metadata found; skipping %s" % resource['id'])
             return CheckMessage.ignore
         else:
             return CheckMessage.download
@@ -56,8 +63,32 @@ class heightmap(TerrarefExtractor):
         ds_md = get_info(connector, host, secret_key, resource['parent']['id'])
         terra_md = get_terraref_metadata(download_metadata(connector, host, secret_key,
                                                            resource['parent']['id']), 'scanner3DTop')
+        if terra_md == {}:
+            # Load & clean metadata.json file in equivalent raw_data directory
+            ply_dir = os.path.dirname(resource['local_paths'][0])
+            md_dir = ply_dir.replace("Level_1", "raw_data")
+            for mdf in os.listdir(md_dir):
+                if mdf.endswith("metadata.json"):
+                    terra_md = clean_metadata(load_json_file(os.path.join(md_dir,mdf)), "scanner3DTop")
+                    # Go ahead and add it to the dataset
+                    cleaned_md = {
+                        "@context": ["https://clowder.ncsa.illinois.edu/contexts/metadata.jsonld",
+                                     {"@vocab": "https://terraref.ncsa.illinois.edu/metadata/uamac#"}],
+                        "content": terra_md,
+                        "agent": {
+                            "@type": "cat:user",
+                            "user_id": "https://terraref.ncsa.illinois.edu/clowder/api/users/57adcb81c0a7465986583df1"
+                        }
+                    }
+                    upload_metadata(connector, host, secret_key, resource['parent']['id'], cleaned_md)
+                    terra_md['sensor_fixed_metadata'] = get_sensor_fixed_metadata("ua-mac", "scanner3DTop")
+
         timestamp = ds_md['name'].split(" - ")[1]
         ply_side = 'west' if resource['name'].find('west') > -1 else 'east'
+
+        if ply_side not in terra_md['spatial_metadata']:
+            logging.error("incompatible metadata format")
+            return False
 
         gps_bounds = terra_md['spatial_metadata'][ply_side]['bounding_box']
         out_tif = self.sensors.create_sensor_path(timestamp, ext='', opts=[ply_side])
