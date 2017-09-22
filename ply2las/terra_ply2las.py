@@ -4,7 +4,6 @@ import os
 import logging
 import shutil
 import subprocess
-from urlparse import urljoin
 
 from pyclowder.utils import CheckMessage
 from pyclowder.files import upload_to_dataset

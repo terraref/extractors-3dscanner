@@ -17,7 +17,7 @@ from pyclowder.files import upload_to_dataset
 from terrautils.extractors import TerrarefExtractor, is_latest_file, build_dataset_hierarchy, \
     build_metadata
 from terrautils.metadata import get_terraref_metadata
-from terraref.formats import create_geotiff
+from terrautils.formats import create_geotiff
 
 
 class heightmap(TerrarefExtractor):
@@ -34,6 +34,12 @@ class heightmap(TerrarefExtractor):
         timestamp = ds_md['name'].split(" - ")[1]
         ply_side = 'west' if resource['name'].find('west') > -1 else 'east'
         out_tif = self.sensors.get_sensor_path(timestamp, opts=[ply_side])
+
+        terra_md = get_terraref_metadata(download_metadata(connector, host, secret_key,
+                                                           resource['parent']['id']))
+        if terra_md == {}:
+            logging.info("no TERRA-REF metadata found; skipping %s" % resource['id'])
+            return CheckMessage.ignore
 
         if os.path.exists(out_tif):
             logging.info("output file already exists; skipping %s" % resource['id'])
@@ -52,7 +58,6 @@ class heightmap(TerrarefExtractor):
                                                            resource['parent']['id']), 'scanner3DTop')
         timestamp = ds_md['name'].split(" - ")[1]
         ply_side = 'west' if resource['name'].find('west') > -1 else 'east'
-        scandirection = int(terra_md['sensor_variable_metadata']['scan_direction'])
 
         gps_bounds = terra_md['spatial_metadata'][ply_side]['bounding_box']
         out_tif = self.sensors.create_sensor_path(timestamp, ext='', opts=[ply_side])
@@ -68,17 +73,11 @@ class heightmap(TerrarefExtractor):
         # Then convert BMP images to GeoTIFFs (flipping negative direction scans 180 degress)
         with Image.open(out_bmp) as bmp:
             px_array = numpy.array(bmp)
-            if scandirection == 1:
-                px_array = numpy.rot90(px_array, 1)
-            else:
-                px_array = numpy.rot90(px_array, 3)
+            px_array = numpy.rot90(px_array, 3)
             create_geotiff(px_array, gps_bounds, out_tif)
         with Image.open(mask_bmp) as bmp:
             px_array = numpy.array(bmp)
-            if scandirection == 1:
-                px_array = numpy.rot90(px_array, 1)
-            else:
-                px_array = numpy.rot90(px_array, 3)
+            px_array = numpy.rot90(px_array, 3)
             create_geotiff(px_array, gps_bounds, mask_tif)
 
         # Upload all 4 outputs
