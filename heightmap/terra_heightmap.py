@@ -39,20 +39,7 @@ class heightmap(TerrarefExtractor):
             logging.info("output file already exists; skipping %s" % resource['id'])
             return CheckMessage.ignore
 
-        # Make sure we have necessary metadata
-        terra_md = get_terraref_metadata(download_metadata(connector, host, secret_key, resource['parent']['id']))
-        if terra_md == {}:
-            # Check for metadata.json file in equivalent raw_data directory
-            # TODO: Update pipeline to account for this instead
-            ply_dir = os.path.dirname(resource['local_paths'][0])
-            md_dir = ply_dir.replace("Level_1", "raw_data")
-            for mdf in os.listdir(md_dir):
-                if mdf.endswith("metadata.json"):
-                    return CheckMessage.download
-            logging.info("no TERRA-REF metadata found; skipping %s" % resource['id'])
-            return CheckMessage.ignore
-        else:
-            return CheckMessage.download
+        return CheckMessage.download
                           
     def process_message(self, connector, host, secret_key, resource, parameters):
         self.start_message()
@@ -82,6 +69,10 @@ class heightmap(TerrarefExtractor):
                     }
                     upload_metadata(connector, host, secret_key, resource['parent']['id'], cleaned_md)
                     terra_md['sensor_fixed_metadata'] = get_sensor_fixed_metadata("ua-mac", "scanner3DTop")
+            if terra_md == {}:
+                logging.error("no metadata found")
+                return False
+
 
         timestamp = ds_md['name'].split(" - ")[1]
         ply_side = 'west' if resource['name'].find('west') > -1 else 'east'
