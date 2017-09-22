@@ -18,6 +18,7 @@ from terrautils.extractors import TerrarefExtractor, is_latest_file, build_datas
     build_metadata, load_json_file
 from terrautils.metadata import get_terraref_metadata, clean_metadata, get_sensor_fixed_metadata
 from terrautils.formats import create_geotiff
+from terrautils.spatial import geojson_to_tuples
 
 
 class heightmap(TerrarefExtractor):
@@ -81,7 +82,7 @@ class heightmap(TerrarefExtractor):
             logging.error("incompatible metadata format")
             return False
 
-        gps_bounds = terra_md['spatial_metadata'][ply_side]['bounding_box']
+        gps_bounds = geojson_to_tuples(terra_md['spatial_metadata'][ply_side]['bounding_box'])
         out_tif = self.sensors.create_sensor_path(timestamp, ext='', opts=[ply_side])
         mask_tif = out_tif.replace(".tif", "_mask.tif")
         out_bmp = out_tif.replace(".tif", ".bmp")
@@ -97,12 +98,15 @@ class heightmap(TerrarefExtractor):
             px_array = numpy.array(bmp)
             px_array = numpy.rot90(px_array, 3)
             create_geotiff(px_array, gps_bounds, out_tif)
+        os.remove(out_bmp)
         with Image.open(mask_bmp) as bmp:
             px_array = numpy.array(bmp)
             px_array = numpy.rot90(px_array, 3)
             create_geotiff(px_array, gps_bounds, mask_tif)
+        os.remove(mask_bmp)
 
-        # Upload all 4 outputs
+        # Upload all 2 outputs
+        """
         if os.path.isfile(out_bmp):
             self.created += 1
             self.bytes += os.path.getsize(out_bmp)
@@ -117,6 +121,7 @@ class heightmap(TerrarefExtractor):
             if mask_bmp not in resource["local_paths"]:
                 fileid = upload_to_dataset(connector, host, secret_key, resource['parent']['id'], mask_bmp)
                 files_created.append(fileid)
+        """
         if os.path.isfile(out_tif):
             self.created += 1
             self.bytes += os.path.getsize(out_tif)
