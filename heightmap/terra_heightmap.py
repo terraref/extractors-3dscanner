@@ -106,22 +106,6 @@ class heightmap(TerrarefExtractor):
         os.remove(mask_bmp)
 
         # Upload all 2 outputs
-        """
-        if os.path.isfile(out_bmp):
-            self.created += 1
-            self.bytes += os.path.getsize(out_bmp)
-            # Send bmp output to Clowder source dataset if not already pointed to
-            if out_bmp not in resource["local_paths"]:
-                fileid = upload_to_dataset(connector, host, secret_key, resource['parent']['id'], out_bmp)
-                files_created.append(fileid)
-        if os.path.isfile(mask_bmp):
-            self.created += 1
-            self.bytes += os.path.getsize(mask_bmp)
-            # Send bmp output to Clowder source dataset if not already pointed to
-            if mask_bmp not in resource["local_paths"]:
-                fileid = upload_to_dataset(connector, host, secret_key, resource['parent']['id'], mask_bmp)
-                files_created.append(fileid)
-        """
         if os.path.isfile(out_tif):
             self.created += 1
             self.bytes += os.path.getsize(out_tif)
