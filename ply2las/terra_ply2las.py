@@ -4,6 +4,9 @@ import os
 import logging
 import shutil
 import subprocess
+import copy
+import math
+import laspy
 
 from pyclowder.utils import CheckMessage
 from pyclowder.files import upload_to_dataset
@@ -11,6 +14,7 @@ from pyclowder.datasets import upload_metadata
 from terrautils.metadata import get_terraref_metadata
 from terrautils.extractors import TerrarefExtractor, is_latest_file, \
     build_dataset_hierarchy, build_metadata, load_json_file
+from terrautils.spatial import scanalyzer_to_mac
 
 
 def add_local_arguments(parser):
@@ -49,7 +53,7 @@ class Ply2LasConverter(TerrarefExtractor):
             timestamp = resource['dataset_info']['name'].split(" - ")[1]
             out_las = self.sensors.get_sensor_path(timestamp)
             if os.path.exists(out_las) and not self.overwrite:
-                logging.info("output LAS file already exists; skipping %s" % resource['id'])
+                logging.getLogger(__name__).info("output LAS file already exists; skipping %s" % resource['id'])
             else:
                 return CheckMessage.download
 
@@ -69,6 +73,7 @@ class Ply2LasConverter(TerrarefExtractor):
                     west_ply = p
             elif p.endswith('_dataset_metadata.json'):
                 all_dsmd = load_json_file(p)
+                terra_md = get_terraref_metadata(all_dsmd)
 
         # Create output in same directory as input, but check name
         timestamp = resource['dataset_info']['name'].split(" - ")[1]
@@ -82,6 +87,8 @@ class Ply2LasConverter(TerrarefExtractor):
                 tmp_east_las = "/data/east_temp.las"
                 tmp_west_las = "/data/west_temp.las"
                 merge_las = "/data/merged.las"
+                convert_las = "/data/converted.las"
+                convert_pt_las = "/data/converted_pts.las"
             else:
                 pdal_base = ""
                 in_east = east_ply
@@ -89,8 +96,10 @@ class Ply2LasConverter(TerrarefExtractor):
                 tmp_east_las = "east_temp.las"
                 tmp_west_las = "west_temp.las"
                 merge_las = "/home/extractor/merged.las"
+                convert_las = "/home/extractor/converted.las"
+                convert_pt_las = "/home/extractor/converted_pts.las"
 
-            logging.info("converting %s" % east_ply)
+            logging.getLogger(__name__).info("converting %s" % east_ply)
             subprocess.call([pdal_base+'pdal translate ' + \
                              '--writers.las.dataformat_id="0" ' + \
                              '--writers.las.scale_x=".000001" ' + \
@@ -98,7 +107,7 @@ class Ply2LasConverter(TerrarefExtractor):
                              '--writers.las.scale_z=".000001" ' + \
                              in_east + " " + tmp_east_las], shell=True)
 
-            logging.info("converting %s" % west_ply)
+            logging.getLogger(__name__).info("converting %s" % west_ply)
             subprocess.call([pdal_base+'pdal translate ' + \
                              '--writers.las.dataformat_id="0" ' + \
                              '--writers.las.scale_x=".000001" ' + \
@@ -106,12 +115,21 @@ class Ply2LasConverter(TerrarefExtractor):
                              '--writers.las.scale_z=".000001" ' + \
                              in_west + " " + tmp_west_las], shell=True)
 
-            logging.info("merging %s + %s into %s" % (tmp_east_las, tmp_west_las, merge_las))
+            logging.getLogger(__name__).info("merging %s + %s into %s" % (tmp_east_las, tmp_west_las, merge_las))
             subprocess.call([pdal_base+'pdal merge ' + \
                              tmp_east_las+' '+tmp_west_las+' '+merge_las], shell=True)
-            if os.path.exists(merge_las):
-                shutil.move(merge_las, out_las)
-                logging.info("...created %s" % out_las)
+
+            logging.getLogger(__name__).info("converting LAS coordinates")
+            # TODO: Should this use east or west if merged?
+            point_cloud_origin = terra_md['sensor_variable_metadata']['point_cloud_origin_m']['east']
+            adj_x, adj_y = scanalyzer_to_mac(point_cloud_origin['x'], point_cloud_origin['y'])
+            adj_pco = (adj_x, adj_y, point_cloud_origin['z'])
+            self.geo_referencing_las(merge_las, convert_las, adj_pco)
+            self.geo_referencing_las_for_eachpoint_in_mac(convert_las, convert_pt_las, adj_pco)
+
+            if os.path.exists(convert_pt_las):
+                shutil.move(convert_pt_las, out_las)
+                logging.getLogger(__name__).info("...created %s" % out_las)
                 if os.path.isfile(out_las) and out_las not in resource["local_paths"]:
                     target_dsid = build_dataset_hierarchy(connector, host, secret_key, self.clowderspace,
                                                           self.sensors.get_display_name(),
@@ -129,6 +147,10 @@ class Ply2LasConverter(TerrarefExtractor):
                 os.remove(tmp_east_las)
             if os.path.exists(tmp_west_las):
                 os.remove(tmp_west_las)
+            if os.path.exists(merge_las):
+                os.remove(merge_las)
+            if os.path.exists(convert_las):
+                os.remove(convert_las)
 
             # Tell Clowder this is completed so subsequent file updates don't daisy-chain
             metadata = build_metadata(host, self.extractor_info, resource['id'], {
@@ -136,13 +158,56 @@ class Ply2LasConverter(TerrarefExtractor):
             upload_metadata(connector, host, secret_key, resource['id'], metadata)
 
             # Upload original Lemnatec metadata to new Level_1 dataset
-            md = get_terraref_metadata(all_dsmd)
-            md['raw_data_source'] = host + ("" if host.endswith("/") else "/") + "datasets/" + resource['id']
-            lemna_md = build_metadata(host, self.extractor_info, target_dsid, md, 'dataset')
+            terra_md['raw_data_source'] = host + ("" if host.endswith("/") else "/") + "datasets/" + resource['id']
+            lemna_md = build_metadata(host, self.extractor_info, target_dsid, terra_md, 'dataset')
             upload_metadata(connector, host, secret_key, target_dsid, lemna_md)
 
             self.end_message()
 
+    # This function add geo-reference offset(UTM ZONE 12) to the las header
+    def geo_referencing_las(self, input_las_file, output_las_file, origin_coord):
+
+        # open las file
+        inFile = laspy.file.File(input_las_file, mode='r')
+
+        # get input header
+        input_header = inFile.header
+
+        # create output header
+        output_header = copy.copy(input_header)
+
+        output_header.x_offset = origin_coord[0]*1000
+        output_header.y_offset = origin_coord[1]*1000
+        output_header.z_offset = origin_coord[2]*1000
+
+        # save as new las file
+        output_file = laspy.file.File(output_las_file, mode='w', header=output_header)
+        output_file.points = inFile.points
+        output_file.close()
+
+        return
+
+    # This function translate each point to there MAC coordinate without any modify in header
+    def geo_referencing_las_for_eachpoint_in_mac(self, input_las_file, output_las_file, origin_coord):
+
+        # open las file
+        inFile = laspy.file.File(input_las_file, mode='r')
+
+        # output handle
+        new_header = copy.copy(inFile.header)
+        src_header = inFile.header
+        new_header.scale = [0.01,0.01,0.01]
+        output_file = laspy.file.File(output_las_file, mode='w', header=new_header)
+
+        #output_file.points = inFile.points
+        # do the translating to each point
+        output_file.X = inFile.X + long(math.floor(origin_coord[0]*100000))
+        output_file.Y = inFile.Y + long(math.floor(origin_coord[1]*100000))
+        output_file.Z = inFile.Z + long(math.floor(origin_coord[2]*100000))
+
+        output_file.close()
+
+        return
 
 if __name__ == "__main__":
     extractor = Ply2LasConverter()
