@@ -122,8 +122,9 @@ class Ply2LasConverter(TerrarefExtractor):
             logging.getLogger(__name__).info("converting LAS coordinates")
             # TODO: Should this use east or west if merged?
             point_cloud_origin = terra_md['sensor_variable_metadata']['point_cloud_origin_m']['east']
-            adj_x, adj_y = scanalyzer_to_mac(point_cloud_origin['x'], point_cloud_origin['y'])
-            adj_pco = (adj_x, adj_y, point_cloud_origin['z'])
+            # TODO: Leave as gantry coordinate system, or convert to MAC?
+            #adj_x, adj_y = scanalyzer_to_mac(point_cloud_origin['x'], point_cloud_origin['y'])
+            #adj_pco = (adj_x, adj_y, point_cloud_origin['z'])
             self.geo_referencing_las(merge_las, convert_las, adj_pco)
             self.geo_referencing_las_for_eachpoint_in_mac(convert_las, convert_pt_las, adj_pco)
 
