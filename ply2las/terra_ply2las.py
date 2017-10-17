@@ -125,8 +125,8 @@ class Ply2LasConverter(TerrarefExtractor):
             # TODO: Leave as gantry coordinate system, or convert to MAC?
             #adj_x, adj_y = scanalyzer_to_mac(point_cloud_origin['x'], point_cloud_origin['y'])
             #adj_pco = (adj_x, adj_y, point_cloud_origin['z'])
-            self.geo_referencing_las(merge_las, convert_las, adj_pco)
-            self.geo_referencing_las_for_eachpoint_in_mac(convert_las, convert_pt_las, adj_pco)
+            self.geo_referencing_las(merge_las, convert_las, point_cloud_origin)
+            self.geo_referencing_las_for_eachpoint_in_mac(convert_las, convert_pt_las, point_cloud_origin)
 
             if os.path.exists(convert_pt_las):
                 shutil.move(convert_pt_las, out_las)
