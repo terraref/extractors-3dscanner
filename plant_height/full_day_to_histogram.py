@@ -334,27 +334,10 @@ def insert_height_traits_into_betydb(in_dir, out_dir, str_date, param_percentile
     
     
     csv.close()
-    #submitToBety(out_file)
     betydb.submit_traits(out_file, filetype='csv', betykey=betydb.get_bety_key(), betyurl=betydb.get_bety_url())
     
     
     return
-
-def submitToBety(csvfile):
-    betyAPI = "https://terraref.ncsa.illinois.edu/bety/api/beta/traits.csv"
-    betyKey = "D49SRRPIPFhJIiJ9XOlACRlc0BHhO3kzUJrnUBS2"
-
-    if betyAPI != "":
-        sess = requests.Session()
-        print(csvfile)
-        print("%s?key=%s" % (betyAPI, betyKey))
-        r = sess.post("%s?key=%s" % (betyAPI, betyKey),  data=file(csvfile, 'rb').read(), headers={'Content-type': 'text/csv'})
-
-        if r.status_code == 200 or r.status_code == 201:
-            print("CSV successfully uploaded to BETYdb.")
-        else:
-            print("Error uploading CSV to BETYdb %s" % r.status_code)
-            print(r.text)
 
 def parse_site_from_plotNum_1728(plotNum):
 
