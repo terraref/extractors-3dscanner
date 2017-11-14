@@ -3,16 +3,35 @@ Created on Aug 9, 2016
 
 @author: Zongyang Li
 '''
-import os,sys,json,argparse, shutil, terra_common
+import os,sys,json,argparse, shutil, terra_common, requests
 import numpy as np
 from glob import glob
 from plyfile import PlyData, PlyElement
-from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import cm
 import matplotlib.pyplot as plt
 from datetime import date
+from terrautils import betydb
 
 convt = terra_common.CoordinateConverter()
+
+PLOT_RANGE_NUM = 54
+PLOT_COL_NUM = 32
+HIST_BIN_NUM = 400
+
+# [(35th percentile from E + 35th percentile from W) / 2] cm * 0.97841 + 25.678cm
+B_TH_PERC = 0.35
+B_F_SLOPE = 0.97841
+B_F_OFFSET = 25.678
+
+# [37th percentile from E sensor] cm * 0.94323 + 26.41cm
+E_TH_PERC = 0.37
+E_F_SLOPE = 0.94323
+E_F_OFFSET = 26.41
+
+# [41st percentile from W sensor] cm * 0.98132 + 24.852cm
+W_TH_PERC = 0.41
+W_F_SLOPE = 0.98132
+W_F_OFFSET = 24.852
 
 def options():
     
@@ -23,7 +42,11 @@ def options():
     parser.add_argument("-p", "--ply_dir", help="ply directory")
     parser.add_argument("-j", "--json_dir", help="json directory")
     parser.add_argument("-o", "--out_dir", help="output directory")
-    parser.add_argument("-d", "--month", help="a month data process")
+    parser.add_argument("-y", "--year", help="specify which year to process")
+    parser.add_argument("-d", "--month", help="specify month")
+    parser.add_argument("-s", "--start_date", help="specify start date")
+    parser.add_argument("-e", "--end_date", help="specify end date")
+    
 
     args = parser.parse_args()
 
@@ -41,10 +64,10 @@ def main():
     if args.mode == 'one':
         full_day_gen_hist(args.ply_dir, args.json_dir, args.out_dir)
             
-        full_day_array_to_xlsx_for_roman(args.out_dir)
+        full_day_array_to_xlsx(args.out_dir)
         
     if args.mode == 'date':
-        process_one_month_data(args.ply_dir, args.json_dir, args.out_dir, args.month)
+        process_one_month_data(args.ply_dir, args.json_dir, args.out_dir, args.year, args.month, args.start_date, args.end_date)
     
     return
 
@@ -77,10 +100,10 @@ def process_all_scanner_data(ply_parent, json_parent, out_parent):
     
     return
 
-def process_one_month_data(ply_parent, json_parent, out_parent, str_month):
+def process_one_month_data(ply_parent, json_parent, out_parent, str_year, str_month, str_start_date, str_end_date):
     
-    for day in range(27, 30):
-        target_date = date(2017, int(4), day)
+    for day in range(int(str_start_date), int(str_end_date)+1):
+        target_date = date(int(str_year), int(str_month), day)
         str_date = target_date.isoformat()
         print(str_date)
         ply_path = os.path.join(ply_parent, str_date)
@@ -91,88 +114,20 @@ def process_one_month_data(ply_parent, json_parent, out_parent, str_month):
         if not os.path.isdir(json_path):
             continue
         try:
+            q_flag = convt.bety_query(str_date)
+            if not q_flag:
+                continue
+            
             full_day_gen_hist(ply_path, json_path, out_path)
     
-            full_day_array_to_xlsx_for_roman(out_path)
+            full_day_array_to_xlsx(out_path)
+            
+            insert_height_traits_into_betydb(out_path, out_path, str_date, B_TH_PERC, 'e')
         except Exception as ex:
             fail(str_date + str(ex))
     
     return
 
-def gen_fraction_hist(in_dir, plotNum):
-    
-    list_dirs = os.walk(in_dir)
-    
-    fraction_data = np.zeros((100))
-    DateHist = []
-    
-    data_count = 0
-    
-    for root, dirs, files in list_dirs:
-        for d in dirs:
-            full_path = os.path.join(in_dir, d)
-            if not os.path.isdir(full_path):
-                continue
-            
-            frac_suffix = os.path.join(full_path, 'fraction.npy')
-            fracfiles = glob(frac_suffix)
-            if len(fracfiles) == 0:
-                continue
-            
-            one_day_hist = np.load(fracfiles[0], 'r')
-            date_str = full_path[-10:]
-            
-            DateHist.append(date_str)
-            fraction_data[data_count] = one_day_hist[plotNum]
-            data_count = data_count + 1
-    '''        
-    if data_count != 0:       
-        draw_field_scanned_in_grid.plot_fraction(fraction_data[0:data_count], DateHist, plotNum, in_dir)
-    else:
-        print 'No data in this plot'
-    '''
-    
-    return
-
-def gen_plot_heatmap(in_dir, plotNum):
-    
-    list_dirs = os.walk(in_dir)
-    
-    plotHist = np.zeros((100, 400))
-    DateHist = []
-    
-    data_count = 0
-    
-    for root, dirs, files in list_dirs:
-        for d in dirs:
-            full_path = os.path.join(in_dir, d)
-            if not os.path.isdir(full_path):
-                continue
-            
-            hist_suffix = os.path.join(full_path, 'heightHist.npy')
-            histfiles = glob(hist_suffix)
-            if len(histfiles) == 0:
-                continue
-            
-            one_day_hist = np.load(histfiles[0], 'r')
-            date_str = full_path[-10:]
-            
-            DateHist.append(date_str)
-            if one_day_hist[plotNum, :].max() == 0:
-                plotHist[data_count, :] = np.NAN
-            else:
-                plotHist[data_count, :] = one_day_hist[plotNum, :]
-            data_count = data_count + 1
-    
-    '''        
-    if data_count != 0:       
-        #draw_field_scanned_in_grid.draw_heatmap(plotHist[0:data_count, :], DateHist, plotNum, in_dir)
-    else:
-        print 'No data in this plot'
-    '''
-    
-    
-    return
 
 def full_day_gen_hist(ply_path, json_path, out_path):
     
@@ -210,13 +165,17 @@ def gen_hist(ply_path, json_path, out_dir):
     metas, ply_file_wests, ply_file_easts = find_input_files(ply_path, json_path)
     
     for meta, ply_file_west, ply_file_east in zip(metas, ply_file_wests, ply_file_easts):
+        json_dst = os.path.join(out_dir, meta)
+        if os.path.exists(json_dst):
+            return
+        
         metadata = lower_keys(load_json(os.path.join(json_path, meta))) # make all our keys lowercase since keys appear to change case (???)
         
         center_position = get_position(metadata) # (x, y, z) in meters
         scanDirection = get_direction(metadata) # scan direction
         
         plywest = PlyData.read(os.path.join(ply_path, ply_file_west))
-        hist_w, heightest_w = gen_height_histogram_for_Roman(plywest, scanDirection, out_dir, 'w', center_position)
+        hist_w, heightest_w = gen_height_histogram(plywest, scanDirection, out_dir, 'w', center_position)
         
         histPath = os.path.join(out_dir, 'hist_w.npy')
         np.save(histPath, hist_w)
@@ -224,26 +183,25 @@ def gen_hist(ply_path, json_path, out_dir):
         np.save(heightestPath, heightest_w)
         
         plyeast = PlyData.read(os.path.join(ply_path, ply_file_east))
-        hist_e, heightest_e = gen_height_histogram_for_Roman(plyeast, scanDirection, out_dir, 'e', center_position)
+        hist_e, heightest_e = gen_height_histogram(plyeast, scanDirection, out_dir, 'e', center_position)
         
         histPath = os.path.join(out_dir, 'hist_e.npy')
         np.save(histPath, hist_e)
         heightestPath = os.path.join(out_dir, 'top_e.npy')
         np.save(heightestPath, heightest_e)
         
-        json_dst = os.path.join(out_dir, meta)
         shutil.copyfile(os.path.join(json_path, meta), json_dst)
     
     return
 
-def get_height_result_for_roman(in_dir, sensor_d):
+def get_height_result(in_dir, sensor_d):
     
     if not os.path.isdir(in_dir):
         fail('Could not find input directory: ' + in_dir)
     
-    plotNum = np.zeros((32,1))
-    hist_data = np.zeros((32,400))
-    top_data = np.zeros((32,1))
+    plotNum = np.zeros((PLOT_COL_NUM,1))
+    hist_data = np.zeros((PLOT_COL_NUM,HIST_BIN_NUM))
+    top_data = np.zeros((PLOT_COL_NUM,1))
     
     # parse json file
     metafile, hist, top = find_result_files(in_dir, sensor_d)
@@ -256,17 +214,16 @@ def get_height_result_for_roman(in_dir, sensor_d):
     hist_data = np.load(hist, 'r')
     top_data = np.load(top, 'r')
         
-    for i in range(0,32):
-        #plotNum[i] = field_2_plot(center_position[0], i+1)
-        plotNum[i] = field_2_plot_for_roman(center_position[0], i+1)
+    for i in range(0,PLOT_COL_NUM):
+        plotNum[i] = field_2_plot(center_position[0], i+1)
     
     return plotNum.astype('int'), hist_data, top_data
 
 def create_normalization_hist(in_dir, out_dir):
     
     list_dirs = os.walk(in_dir)
-    heightHist = np.zeros((1728, 400))
-    plotScanCount = np.zeros((1728))
+    heightHist = np.zeros((PLOT_COL_NUM*PLOT_RANGE_NUM, HIST_BIN_NUM))
+    plotScanCount = np.zeros((PLOT_COL_NUM*PLOT_RANGE_NUM))
     
     for root, dirs, files in list_dirs:
         for d in dirs:
@@ -274,15 +231,15 @@ def create_normalization_hist(in_dir, out_dir):
             if not os.path.isdir(full_path):
                 continue
             
-            plotNum, hist, top = get_height_result_for_roman(full_path)
-            if len(plotNum) < 32:
+            plotNum, hist, top = get_height_result(full_path)
+            if len(plotNum) < PLOT_COL_NUM:
                 continue
             
             for j in range(0,plotNum.size):
                 heightHist[plotNum[j]-1] = heightHist[plotNum[j]-1]+hist[j]
                 plotScanCount[plotNum[j]-1] = plotScanCount[plotNum[j]-1] + 1
                 
-    for i in range(0, 1728):
+    for i in range(0, PLOT_COL_NUM*PLOT_RANGE_NUM):
         if plotScanCount[i] != 0:
             heightHist[i] = heightHist[i]/plotScanCount[i]
     
@@ -295,24 +252,26 @@ def create_normalization_hist(in_dir, out_dir):
     
     return
 
-def full_day_array_to_xlsx_for_roman(in_dir):
-    
-    list_dirs = os.walk(in_dir)
-    heightHist = np.zeros((1728, 400))
-    topMat = np.zeros((1728))
+def full_day_array_to_xlsx(in_dir):
     
     for sensor_d in ['e','w']:
+        list_dirs = os.walk(in_dir)
+        heightHist = np.zeros((PLOT_COL_NUM*PLOT_RANGE_NUM, HIST_BIN_NUM))
+        topMat = np.zeros((PLOT_COL_NUM*PLOT_RANGE_NUM))
         for root, dirs, files in list_dirs:
             for d in dirs:
                 full_path = os.path.join(in_dir, d)
                 if not os.path.isdir(full_path):
                     continue
                 
-                plotNum, hist, top = get_height_result_for_roman(full_path, sensor_d)
-                if len(plotNum) < 32:
+                plotNum, hist, top = get_height_result(full_path, sensor_d)
+                if len(plotNum) < PLOT_COL_NUM:
                     continue
                 
                 for j in range(0,plotNum.size):
+                    if plotNum[j] == 0:
+                        continue
+                    
                     heightHist[plotNum[j]-1] = heightHist[plotNum[j]-1]+hist[j]
                     
                     if topMat[plotNum[j]-1] < top[j]:
@@ -331,39 +290,156 @@ def full_day_array_to_xlsx_for_roman(in_dir):
     
     return
 
-def field_2_plot(x, y):
-    plotRange = round(x/4)
-    col = y
-    if plotRange % 2 == 1:
-        col = 16-col+1
-    plotNum = plotRange*16+col
-    return plotNum
-
-def field_2_plot_for_season_two(x_position, y_row):
-
-    xRange = 0
-    count = 0
-        
-    for (xmin, xmax) in terra_common._x_range_s2:
-        count = count + 1
-        if (x_position > xmin) and (x_position <= xmax):
-            xRange = 55 - count
-            
-            plotNum = convt.fieldPartition_to_plotNum(xRange, y_row)
-            
-            return plotNum
+def insert_height_traits_into_betydb(in_dir, out_dir, str_date, param_percentile, sensor_d):
     
-    return 0
+    if not os.path.isdir(out_dir):
+        os.makedirs(out_dir)
+    
+    hist_e, hist_w = load_histogram_from_both_npy(in_dir)
+    
+    out_file = os.path.join(out_dir, str_date+'_height.csv')
+    csv = open(out_file, 'w')
+    
+    (fields, traits) = get_traits_table_height()
+        
+    csv.write(','.join(map(str, fields)) + '\n')
+        
+    for j in range(0, PLOT_COL_NUM*PLOT_RANGE_NUM):
+        targetHist_e = hist_e[j,:]
+        targetHist_w = hist_w[j, :]
+        plotNum = j+1
+        if (targetHist_e.max() == 0) or (targetHist_w.max())==0:
+            continue
+        else:
+            targetHist_e = targetHist_e/np.sum(targetHist_e)
+            quantiles_e = np.cumsum(targetHist_e)
+            b=np.arange(len(quantiles_e))
+            c=b[quantiles_e>param_percentile]
+            quantile_e = min(c)
+            
+            targetHist_w = targetHist_w/np.sum(targetHist_w)
+            quantiles_w = np.cumsum(targetHist_w)
+            b=np.arange(len(quantiles_w))
+            c=b[quantiles_w>param_percentile]
+            quantile_w = min(c)
+            
+            estHeight = (quantile_e + quantile_w)/2
+                
+            str_time = str_date+'T12:00:00'
+            traits['local_datetime'] = str_time
+            traits['canopy_height'] = str((B_F_SLOPE*float(estHeight) + B_F_OFFSET)/100.0)
+            traits['site'] = parse_site_from_plotNum_1728(plotNum)
+            trait_list = generate_traits_list_height(traits)
+            csv.write(','.join(map(str, trait_list)) + '\n')
+    
+    
+    csv.close()
+    betydb.submit_traits(out_file, filetype='csv', betykey=betydb.get_bety_key(), betyurl=betydb.get_bety_url())
+    
+    
+    return
 
-def field_2_plot_for_roman(x_position, y_row):
+def parse_site_from_plotNum_1728(plotNum):
+
+    plot_row = 0
+    plot_col = 0
+    
+    cols = 32
+    col = (plotNum-1) % cols + 1
+    row = (plotNum-1) / cols + 1
+    
+    
+    if (row % 2) != 0:
+        plot_col = col
+    else:
+        plot_col = cols - col + 1
+    
+    Range = row
+    Column = (plot_col + 1) / 2
+    if (plot_col % 2) != 0:
+        subplot = 'W'
+    else:
+        subplot = 'E'
+        
+    seasonNum = convt.seasonNum
+        
+    rel = 'MAC Field Scanner Season {} Range {} Column {} {}'.format(str(seasonNum), str(Range), str(Column), subplot)
+    
+    return rel
+
+
+def load_histogram_from_npy(in_dir, sensor_d):
+    
+    file_path = os.path.join(in_dir, 'heightHist_' + sensor_d + '.npy')
+    hist = np.load(file_path)
+    
+    return hist
+
+def load_histogram_from_both_npy(in_dir):
+    
+    file_path_e = os.path.join(in_dir, 'heightHist_e.npy')
+    if not os.path.exists(file_path_e):
+        return []
+    hist_e = np.load(file_path_e)
+    
+    file_path_w = os.path.join(in_dir, 'heightHist_w.npy')
+    if not os.path.exists(file_path_w):
+        return []
+    hist_w = np.load(file_path_w)
+    
+    return hist_e, hist_w
+
+def get_traits_table_height():
+    
+    fields = ('local_datetime', 'canopy_height', 'access_level', 'species', 'site',
+              'citation_author', 'citation_year', 'citation_title', 'method')
+    traits = {'local_datetime' : '',
+              'height' : [],
+              'access_level': '2',
+              'species': 'Sorghum bicolor',
+              'site': [],
+              'citation_author': '"Zongyang, Li"',
+              'citation_year': '2017',
+              'citation_title': 'Maricopa Field Station Data and Metadata',
+              'method': 'Scanner 3d ply data to height'}
+
+    return (fields, traits)
+
+def generate_traits_list_height(traits):
+    # compose the summary traits
+    trait_list = [  traits['local_datetime'],
+                    traits['canopy_height'],
+                    traits['access_level'],
+                    traits['species'],
+                    traits['site'],
+                    traits['citation_author'],
+                    traits['citation_year'],
+                    traits['citation_title'],
+                    traits['method']
+                ]
+
+    return trait_list
+
+def field_x_2_range(x_position):
+    
+    xRange = 0
+    
+    for i in range(PLOT_RANGE_NUM):
+        xmin = convt.np_bounds[i][0][0]
+        xmax = convt.np_bounds[i][0][1]
+        if (x_position > xmin) and (x_position <= xmax):
+            xRange = i + 1
+    
+    return xRange
+
+def field_2_plot(x_position, y_row):
 
     xRange = 0
-    count = 0
-        
-    for (xmin, xmax) in terra_common._x_range_s4:
-        count = count + 1
+    for i in range(PLOT_RANGE_NUM):
+        xmin = convt.np_bounds[i][0][0]
+        xmax = convt.np_bounds[i][0][1]
         if (x_position > xmin) and (x_position <= xmax):
-            xRange = 55 - count
+            xRange = i + 1
             
             plotNum = convt.fieldPartition_to_plotNum_32(xRange, y_row)
             
@@ -376,13 +452,13 @@ def find_result_files(in_dir, sensor_d):
     metadata_suffix = os.path.join(in_dir, '*_metadata.json')
     metas = glob(metadata_suffix)
     if len(metas) == 0:
-        fail('No metadata file found in input directory.')
+        #fail('No metadata file found in input directory.')
         return [], [], []
 
     hist_file = os.path.join(in_dir, 'hist_'+sensor_d+'.npy')
     top_file = os.path.join(in_dir, 'top_'+sensor_d+'.npy')
     if os.path.isfile(hist_file) == False | os.path.isfile(top_file) == False:
-        fail('No hist file or top file in input directory')
+        #fail('No hist file or top file in input directory')
         return [], [], []
 
     return metas[0], hist_file, top_file
@@ -451,84 +527,21 @@ def get_position(metadata):
 
 
 def get_direction(metadata):
-    if 'lemnatec_measurement_metadata' in metadata:
-        try:
-            gantry_meta = metadata['lemnatec_measurement_metadata']['gantry_system_variable_metadata']
-            if 'scanIsInPositiveDirection' in gantry_meta:
-                scan_direction = gantry_meta["scanIsInPositiveDirection"]
-            else:
-                scan_direction = gantry_meta["scanisinpositivedirection"]
-
-        except KeyError as err:
-            fail('Metadata file missing key: ' + err.args[0])
-
-    elif 'terraref_cleaned_metadata' in metadata and metadata['terraref_cleaned_metadata']:
-        return metadata['gantry_variable_metadata']['scan_direction_is_positive']
+    try:
+        gantry_meta = metadata['lemnatec_measurement_metadata']['gantry_system_variable_metadata']
+        scan_direction = gantry_meta["scanisinpositivedirection"]
+        
+    except KeyError as err:
+        fail('Metadata file missing key: ' + err.args[0])
         
     return scan_direction
 
 
-def gen_height_histogram(plydata, scanDirection):
-    
-    yStart = 0
-    yRange = 16
-    yOffset = 1362
-    zOffset = 10
-    zRange = [-2000, 2000]
-    hist = np.zeros((yRange, (zRange[1]-zRange[0])/zOffset))
-    heightest = np.zeros((yRange, 1))
-    data = plydata.elements[0].data
-    if data.size == 0:
-        return hist, heightest
-    
-    if scanDirection == 'False':
-        data["y"] = 0 - data["y"]
-    
-    for i in range(0, yRange):
-        ymin = yStart + i*yOffset
-        ymax = ymin + yOffset
-        specifiedIndex = np.where((data["y"]>ymin) & (data["y"]<ymax))
-        target = data[specifiedIndex]
-        
-        zloop = 0
-        for z in range(zRange[0],zRange[1], zOffset):       
-            zmin = z
-            zmax = (z+zOffset)
-            zIndex = np.where((target["z"]>zmin) & (target["z"]<zmax));
-            num = len(zIndex[0])
-            hist[i][zloop] = num
-            zloop = zloop + 1
-    
-        zTop = 0;
-        if len(specifiedIndex[0])!=0:
-            zTop = target["z"].max()
-        
-        heightest[i] = zTop
-    
-    
-    return hist, heightest
-
-def offset_choice(scanDirection, sensor_d):
-    
-    if sensor_d == 'w':
-        if scanDirection == 'True':
-            ret = -3.45#-3.08
-        else:
-            ret = -25.711#-25.18
-            
-    if sensor_d == 'e':
-        if scanDirection == 'True':
-            ret = -3.45#-3.08
-        else:
-            ret = -25.711#-25.18
-    
-    return ret
-
-def gen_height_histogram_for_Roman(plydata, scanDirection, sensor_d, zheight):
+def gen_height_histogram(plydata, scanDirection, out_dir, sensor_d, center_position):
     
     gantry_z_offset = 0.35
-    zGround = (3.445 - zheight + gantry_z_offset)*1000
-    yRange = 32
+    zGround = (3.445 - center_position[2] + gantry_z_offset)*1000
+    yRange = PLOT_COL_NUM
     yShift = offset_choice(scanDirection, sensor_d)
     zOffset = 10
     zRange = [-2000, 2000]
@@ -537,41 +550,89 @@ def gen_height_histogram_for_Roman(plydata, scanDirection, sensor_d, zheight):
     heightest = np.zeros((yRange, 1))
     data = plydata.elements[0].data
     
+    xRange = field_x_2_range(center_position[0])
+    
     if data.size == 0:
         return hist, heightest
-
-    # plot_list = get_plots_from_bety
-    # for each plot in plot_list...
-    #   is the plot inside the PLY boundary?
-    #       if yes, clip the PLY point cloud to that plot
-    #           plydata = clipped_ply_data
-    #           give PLY data below
-
-    # TODO: Replace with getting plot bounding box instead of yRange = 32
+    
     for i in range(0, yRange):
-        ymin = (terra_common._y_row_s4[i][0]+yShift) * scaleParam
-        ymax = (terra_common._y_row_s4[i][1]+yShift) * scaleParam
+        ymin = (convt.np_bounds[xRange][i][2]+yShift) * scaleParam
+        ymax = (convt.np_bounds[xRange][i][3]+yShift) * scaleParam
         specifiedIndex = np.where((data["y"]>ymin) & (data["y"]<ymax))
         target = data[specifiedIndex]
         
-        for j in range(0, 400):
+        for j in range(0, HIST_BIN_NUM):
             zmin = zGround + j * zOffset
             zmax = zGround + (j+1) * zOffset
             zIndex = np.where((target["z"]>zmin) & (target["z"]<zmax));
             num = len(zIndex[0])
             hist[i][j] = num
+    
+        zTop = 0;
+        if len(specifiedIndex[0])!=0:
+            zTop = target["z"].max()
+        
+        heightest[i] = zTop
         
         '''
-        zloop = 0
-        for z in range(zRange[0],zRange[1], zOffset):       
-            zmin = z
-            zmax = (z+zOffset)
+        out_basename = str(i)+'_'+sensor_d+'.png'
+        out_file = os.path.join(out_dir, out_basename)
+        save_points(target, out_file, i)
+        #save_sub_ply(target, plydata, os.path.join(out_dir, str(i)+'.ply'))
+        np.savetxt(os.path.join(out_dir, str(i)+'.txt'), hist[i])
+        '''
+    
+    return hist, heightest
+
+def offset_choice(scanDirection, sensor_d):
+    
+    if sensor_d == 'w':
+        if scanDirection == 'True':
+            ret = -3.60#-3.08
+        else:
+            ret = -25.711#-25.18
+            
+    if sensor_d == 'e':
+        if scanDirection == 'True':
+            ret = -3.60#-3.08
+        else:
+            ret = -25.711#-25.18
+    
+    return ret
+
+def gen_height_histogram_for_Roman(plydata, scanDirection, out_dir, sensor_d, center_position):
+    
+    gantry_z_offset = 0.35
+    zGround = (3.445 - center_position[2] + gantry_z_offset)*1000
+    yRange = PLOT_COL_NUM
+    yShift = offset_choice(scanDirection, sensor_d)
+    zOffset = 10
+    zRange = [-2000, 2000]
+    scaleParam = 1000
+    hist = np.zeros((yRange, (zRange[1]-zRange[0])/zOffset))
+    heightest = np.zeros((yRange, 1))
+    data = plydata.elements[0].data
+    
+    xRange = field_x_2_range(center_position[0])
+    
+    if data.size == 0:
+        return hist, heightest
+    
+    for i in range(0, yRange):
+        #ymin = (terra_common._y_row_s4[i][0]+yShift) * scaleParam
+        #ymax = (terra_common._y_row_s4[i][1]+yShift) * scaleParam
+        ymin = (convt.np_bounds[xRange][i][2]+yShift) * scaleParam
+        ymax = (convt.np_bounds[xRange][i][3]+yShift) * scaleParam
+        specifiedIndex = np.where((data["y"]>ymin) & (data["y"]<ymax))
+        target = data[specifiedIndex]
+        
+        for j in range(0, HIST_BIN_NUM):
+            zmin = zGround + j * zOffset
+            zmax = zGround + (j+1) * zOffset
             zIndex = np.where((target["z"]>zmin) & (target["z"]<zmax));
             num = len(zIndex[0])
-            hist[i][zloop] = num
-            zloop = zloop + 1
-        '''
-
+            hist[i][j] = num
+    
         zTop = 0;
         if len(specifiedIndex[0])!=0:
             zTop = target["z"].max()
@@ -593,50 +654,6 @@ def save_sub_ply(subData, src, outFile):
     src.write(outFile)
     
     return
-
-def gen_height_histogram_for_season_two(plydata, scanDirection, out_dir, sensor_d):
-    
-    yRange = 16
-    yShift = -3
-    zOffset = 10
-    zRange = [-2000, 2000]
-    scaleParam = 1000
-    hist = np.zeros((yRange, (zRange[1]-zRange[0])/zOffset))
-    heightest = np.zeros((yRange, 1))
-    data = plydata.elements[0].data
-    if data.size == 0:
-        return hist, heightest
-    
-    if scanDirection == 'False':
-        yShift = -25.1
-    
-    for i in range(0, yRange):
-        ymin = (terra_common._y_row_s2[i*2+1][0]+yShift) * scaleParam
-        ymax = (terra_common._y_row_s2[i*2][1]+yShift) * scaleParam
-        specifiedIndex = np.where((data["y"]>ymin) & (data["y"]<ymax))
-        target = data[specifiedIndex]
-        '''
-        zloop = 0
-        for z in range(zRange[0],zRange[1], zOffset):       
-            zmin = z
-            zmax = (z+zOffset)
-            zIndex = np.where((target["z"]>zmin) & (target["z"]<zmax));
-            num = len(zIndex[0])
-            hist[i][zloop] = num
-            zloop = zloop + 1
-    
-        zTop = 0;
-        if len(specifiedIndex[0])!=0:
-            zTop = target["z"].max()
-        
-        heightest[i] = zTop
-        '''
-        out_basename = str(i)+'.png'
-        out_file = os.path.join(out_dir, out_basename)
-        save_points(target, out_file, i)
-        
-    
-    return hist, heightest
 
 def save_points(ply_data, out_file, id):
     

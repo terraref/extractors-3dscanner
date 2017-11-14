@@ -3,8 +3,23 @@ Created on Sep 6, 2016
 
 @author: Zongyang Li
 '''
-import json, sys
+import json, sys, utm
+import numpy as np
 from math import cos, pi
+sys.path.insert(0, '/Users/nijiang/Documents/JavaWorkSpace/pyTest/terrautils-master/')
+from terrautils.betydb import get_site_boundaries
+
+# Scanalyzer -> MAC formular @ https://terraref.gitbooks.io/terraref-documentation/content/user/geospatial-information.html
+# Mx = ax + bx * Gx + cx * Gy
+# My = ay + by * Gx + cy * Gy
+# Gx = ( (My/cy - ay/cy) - (Mx/cx - ax/cx) ) / (by/cy - bx/cx)
+# Gy = ( (My/by - ay/by) - (Mx/bx - ax/bx) ) / (cy/by - cx/bx)
+SE_latlon = (33.07451869,-111.97477775)
+ay = 3659974.971; by = 1.0002; cy = 0.0078;
+ax = 409012.2032; bx = 0.009; cx = - 0.9986;
+SE_utm = utm.from_latlon(SE_latlon[0], SE_latlon[1])
+lng_shift = 0.000020308287
+lat_shift = 0.000015258894
 
 "reference coordinates of ranges from TERRA_sorghum_field_book"
 # comes from https://docs.google.com/spreadsheets/d/1eQSeVMPfrWS9Li4XlJf3qs2F8txmddbwZhjOfMGAvt8/edit#gid=1765508846
@@ -259,7 +274,12 @@ class CoordinateConverter(object):
     
     def __init__(self):
         self.fov = 0
-        self.pixSize = 0.9853
+        self.pixSize = 1
+        self.x_range = 0
+        self.y_column = 0
+        self.seasonNum = 0
+        self.np_bounds = np.zeros((54, 32, 4))
+        self.plots = ''
         
     def fieldPosition_to_Latlon(self, x, y):
         "Converts field position to latlon"
@@ -369,6 +389,112 @@ class CoordinateConverter(object):
         plotNum = (plot_row-1)*32 + plot_col
     
         return plotNum
+    
+    
+    def epsg_to_mac(self, latlng):
+        
+        Utm_lng = latlng[0] - lng_shift
+        Utm_lat = latlng[1] + lat_shift
+        
+        mac = utm.from_latlon(Utm_lat, Utm_lng)
+        
+        return mac
+    
+    def mac_to_Scanalyzer(self, mac):
+        # Gx = ( (My/cy - ay/cy) - (Mx/cx - ax/cx) ) / (by/cy - bx/cx)
+        # Gy = ( (My/by - ay/by) - (Mx/bx - ax/bx) ) / (cy/by - cx/bx)
+        Mx = mac[0]
+        My = mac[1]
+        
+        Gx = ( (My/cy - ay/cy) - (Mx/cx - ax/cx) ) / (by/cy - bx/cx)
+        Gy = ( (My/by - ay/by) - (Mx/bx - ax/bx) ) / (cy/by - cx/bx)
+        
+        return [Gx, Gy]
+    
+    def latlng_to_Scanalyzer(self, latlng):
+        
+        mac = self.epsg_to_mac(latlng)
+        gantry_coord = self.mac_to_Scanalyzer(mac)
+        
+        return gantry_coord
+    
+    def bety_query(self, str_date):
+        
+        self.plots = get_site_boundaries(str_date, city="Maricopa")
+        
+        self.parse_bety_plots()
+        
+        records_num = np.count_nonzero(self.np_bounds)
+        if records_num != 1728*4:
+            return False
+        
+        return True
+    
+    def parse_bety_plots(self):
+        
+        for item in self.plots:
+            range_, col, xmin, xmax, ymin, ymax = self.parse_site_boundary(item, self.plots[item])
+            if range_ == 0:
+                continue
+            self.insert_boundary_to_nparray(range_, col, xmin, xmax, ymin, ymax)
+        
+        return
+    
+    def parse_site_boundary(self, site, bound_record):
+    
+        side_flag = -1
+        
+        if site.endswith(' E'):
+            side_flag = 2
+        elif site.endswith(' W'):
+            side_flag = 1
+        else:
+            return 0, 0, 0, 0, 0, 0
+        
+        # MAC Field Scanner Season 4 Range 5 Column 6 W
+        plot_record = [int(s) for s in site.split() if s.isdigit()]
+        if len(plot_record) != 3:
+            return 0, 0, 0, 0, 0, 0
+        
+        self.seasonNum = plot_record[0]
+        range_ = plot_record[1]
+        col = (plot_record[2]-1)*2 + side_flag
+        
+        latlngs = self.bety_str_parsing(bound_record)
+        
+        gantry_coords = []
+        for latlng in latlngs:
+            gantry_coords.append(self.latlng_to_Scanalyzer(latlng))
+            
+        xmin = gantry_coords[2][0]
+        xmax = gantry_coords[0][0]
+        ymin = gantry_coords[1][1]
+        ymax = gantry_coords[0][1]
+        
+        return range_, col, xmin, xmax, ymin, ymax
+    
+    def bety_str_parsing(self, bety_str):
+        
+        j = json.loads(bety_str)
+        latlngs = []
+        for i in range(4):
+            latlngs.append(j['coordinates'][0][0][i])
+        
+        return latlngs
+    
+    def insert_boundary_to_nparray(self, range_, col, xmin, xmax, ymin, ymax):
+        
+        range_ -= 1
+        col -= 1
+        
+        self.np_bounds[range_][col][0] = xmin
+        self.np_bounds[range_][col][1] = xmax
+        self.np_bounds[range_][col][2] = ymin
+        self.np_bounds[range_][col][3] = ymax
+        
+        return
+    
+    
 
 
 def load_json(meta_path):
