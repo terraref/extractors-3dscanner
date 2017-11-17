@@ -399,7 +399,7 @@ def get_traits_table_height():
               'species': 'Sorghum bicolor',
               'site': [],
               'citation_author': '"Zongyang, Li"',
-              'citation_year': '2017',
+              'citation_year': '2016',
               'citation_title': 'Maricopa Field Station Data and Metadata',
               'method': 'Scanner 3d ply data to height'}
 
