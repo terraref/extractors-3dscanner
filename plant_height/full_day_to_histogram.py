@@ -334,7 +334,7 @@ def insert_height_traits_into_betydb(in_dir, out_dir, str_date, param_percentile
     
     
     csv.close()
-    betydb.submit_traits(out_file, filetype='csv', betykey=betydb.get_bety_key(), betyurl=betydb.get_bety_url())
+    betydb.submit_traits(out_file, filetype='csv')
     
     
     return
