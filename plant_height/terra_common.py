@@ -420,7 +420,7 @@ class CoordinateConverter(object):
     
     def bety_query(self, str_date):
         
-        self.plots = get_site_boundaries(str_date, city="Maricopa")
+        self.plots = get_site_boundaries(str_date, city="Maricopa", include_halves=True)
         
         self.parse_bety_plots()
         

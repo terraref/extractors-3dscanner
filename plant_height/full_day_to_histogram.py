@@ -334,7 +334,7 @@ def insert_height_traits_into_betydb(in_dir, out_dir, str_date, param_percentile
     
     
     csv.close()
-    betydb.submit_traits(out_file, filetype='csv', betykey=betydb.get_bety_key(), betyurl=betydb.get_bety_url())
+    betydb.submit_traits(out_file, filetype='csv')
     
     
     return
@@ -399,7 +399,7 @@ def get_traits_table_height():
               'species': 'Sorghum bicolor',
               'site': [],
               'citation_author': '"Zongyang, Li"',
-              'citation_year': '2017',
+              'citation_year': '2016',
               'citation_title': 'Maricopa Field Station Data and Metadata',
               'method': 'Scanner 3d ply data to height'}
 
