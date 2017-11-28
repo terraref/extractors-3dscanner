@@ -36,6 +36,9 @@ class Ply2LasConverter(TerrarefExtractor):
 
     # Check whether dataset already has metadata
     def check_message(self, connector, host, secret_key, resource, parameters):
+        if parameters["rulechecked"]:
+            return CheckMessage.download
+
         if not is_latest_file(resource):
             return CheckMessage.ignore
 
