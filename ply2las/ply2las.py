@@ -142,7 +142,7 @@ def get_position(metadata):
     try:
         x = float(gantry_x) + float(camera_x)
         y = float(gantry_y)
-        z = float(gantry_z) + camera_z
+        z = float(gantry_z) + float(camera_z)
     except ValueError as err:
         fail('Corrupt positions, ' + err.args[0])
     return (x, y, z)
