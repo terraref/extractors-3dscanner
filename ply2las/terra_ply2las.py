@@ -36,7 +36,7 @@ class Ply2LasConverter(TerrarefExtractor):
 
     # Check whether dataset already has metadata
     def check_message(self, connector, host, secret_key, resource, parameters):
-        if parameters["rulechecked"]:
+        if "rulechecked" in parameters and parameters["rulechecked"]:
             return CheckMessage.download
 
         if not is_latest_file(resource):
@@ -135,7 +135,7 @@ class Ply2LasConverter(TerrarefExtractor):
                 shutil.move(convert_pt_las, out_las)
                 logging.getLogger(__name__).info("...created %s" % out_las)
                 if os.path.isfile(out_las) and out_las not in resource["local_paths"]:
-                    target_dsid = build_dataset_hierarchy(connector, host, secret_key, self.clowderspace,
+                    target_dsid = build_dataset_hierarchy(host, secret_key, self.clowder_user, self.clowder_pass, self.clowderspace,
                                                           self.sensors.get_display_name(),
                                                           timestamp[:4], timestamp[5:7],timestamp[8:10],
                                                           leaf_ds_name=self.sensors.get_display_name()+' - '+timestamp)
@@ -180,9 +180,9 @@ class Ply2LasConverter(TerrarefExtractor):
         # create output header
         output_header = copy.copy(input_header)
 
-        output_header.x_offset = origin_coord[0]*1000
-        output_header.y_offset = origin_coord[1]*1000
-        output_header.z_offset = origin_coord[2]*1000
+        output_header.x_offset = origin_coord['x']*1000
+        output_header.y_offset = origin_coord['y']*1000
+        output_header.z_offset = origin_coord['z']*1000
 
         # save as new las file
         output_file = laspy.file.File(output_las_file, mode='w', header=output_header)
@@ -205,9 +205,9 @@ class Ply2LasConverter(TerrarefExtractor):
 
         #output_file.points = inFile.points
         # do the translating to each point
-        output_file.X = inFile.X + long(math.floor(origin_coord[0]*100000))
-        output_file.Y = inFile.Y + long(math.floor(origin_coord[1]*100000))
-        output_file.Z = inFile.Z + long(math.floor(origin_coord[2]*100000))
+        output_file.X = inFile.X + long(math.floor(origin_coord['x']*100000))
+        output_file.Y = inFile.Y + long(math.floor(origin_coord['y']*100000))
+        output_file.Z = inFile.Z + long(math.floor(origin_coord['z']*100000))
 
         output_file.close()
 
