@@ -3,10 +3,7 @@
 import os
 import logging
 import shutil
-import subprocess
-import copy
-import math
-import laspy
+
 
 from pyclowder.utils import CheckMessage
 from pyclowder.files import upload_to_dataset
@@ -14,8 +11,9 @@ from pyclowder.datasets import upload_metadata
 from terrautils.metadata import get_terraref_metadata
 from terrautils.extractors import TerrarefExtractor, is_latest_file, \
     build_dataset_hierarchy, build_metadata, load_json_file
-from terrautils.spatial import scanalyzer_to_mac
 
+from science.ply2las import generate_las_from_pdal, combine_east_west_las, geo_referencing_las, \
+    geo_referencing_las_for_eachpoint_in_mac
 
 def add_local_arguments(parser):
     # add any additional arguments to parser
@@ -102,25 +100,11 @@ class Ply2LasConverter(TerrarefExtractor):
                 convert_las = "/home/extractor/converted.las"
                 convert_pt_las = "/home/extractor/converted_pts.las"
 
-            logging.getLogger(__name__).info("converting %s" % east_ply)
-            subprocess.call([pdal_base+'pdal translate ' + \
-                             '--writers.las.dataformat_id="0" ' + \
-                             '--writers.las.scale_x=".000001" ' + \
-                             '--writers.las.scale_y=".0001" ' + \
-                             '--writers.las.scale_z=".000001" ' + \
-                             in_east + " " + tmp_east_las], shell=True)
+            generate_las_from_pdal(pdal_base, in_east, tmp_east_las)
 
-            logging.getLogger(__name__).info("converting %s" % west_ply)
-            subprocess.call([pdal_base+'pdal translate ' + \
-                             '--writers.las.dataformat_id="0" ' + \
-                             '--writers.las.scale_x=".000001" ' + \
-                             '--writers.las.scale_y=".0001" ' + \
-                             '--writers.las.scale_z=".000001" ' + \
-                             in_west + " " + tmp_west_las], shell=True)
+            generate_las_from_pdal(pdal_base, in_west, tmp_west_las)
 
-            logging.getLogger(__name__).info("merging %s + %s into %s" % (tmp_east_las, tmp_west_las, merge_las))
-            subprocess.call([pdal_base+'pdal merge ' + \
-                             tmp_east_las+' '+tmp_west_las+' '+merge_las], shell=True)
+            combine_east_west_las(pdal_base, tmp_east_las, tmp_west_las, merge_las)
 
             logging.getLogger(__name__).info("converting LAS coordinates")
             # TODO: Should this use east or west if merged?
@@ -128,8 +112,8 @@ class Ply2LasConverter(TerrarefExtractor):
             # TODO: Leave as gantry coordinate system, or convert to MAC?
             #adj_x, adj_y = scanalyzer_to_mac(point_cloud_origin['x'], point_cloud_origin['y'])
             #adj_pco = (adj_x, adj_y, point_cloud_origin['z'])
-            self.geo_referencing_las(merge_las, convert_las, point_cloud_origin)
-            self.geo_referencing_las_for_eachpoint_in_mac(convert_las, convert_pt_las, point_cloud_origin)
+            geo_referencing_las(merge_las, convert_las, point_cloud_origin)
+            geo_referencing_las_for_eachpoint_in_mac(convert_las, convert_pt_las, point_cloud_origin)
 
             if os.path.exists(convert_pt_las):
                 shutil.move(convert_pt_las, out_las)
@@ -168,50 +152,6 @@ class Ply2LasConverter(TerrarefExtractor):
 
             self.end_message()
 
-    # This function add geo-reference offset(UTM ZONE 12) to the las header
-    def geo_referencing_las(self, input_las_file, output_las_file, origin_coord):
-
-        # open las file
-        inFile = laspy.file.File(input_las_file, mode='r')
-
-        # get input header
-        input_header = inFile.header
-
-        # create output header
-        output_header = copy.copy(input_header)
-
-        output_header.x_offset = origin_coord['x']*1000
-        output_header.y_offset = origin_coord['y']*1000
-        output_header.z_offset = origin_coord['z']*1000
-
-        # save as new las file
-        output_file = laspy.file.File(output_las_file, mode='w', header=output_header)
-        output_file.points = inFile.points
-        output_file.close()
-
-        return
-
-    # This function translate each point to there MAC coordinate without any modify in header
-    def geo_referencing_las_for_eachpoint_in_mac(self, input_las_file, output_las_file, origin_coord):
-
-        # open las file
-        inFile = laspy.file.File(input_las_file, mode='r')
-
-        # output handle
-        new_header = copy.copy(inFile.header)
-        src_header = inFile.header
-        new_header.scale = [0.01,0.01,0.01]
-        output_file = laspy.file.File(output_las_file, mode='w', header=new_header)
-
-        #output_file.points = inFile.points
-        # do the translating to each point
-        output_file.X = inFile.X + long(math.floor(origin_coord['x']*100000))
-        output_file.Y = inFile.Y + long(math.floor(origin_coord['y']*100000))
-        output_file.Z = inFile.Z + long(math.floor(origin_coord['z']*100000))
-
-        output_file.close()
-
-        return
 
 if __name__ == "__main__":
     extractor = Ply2LasConverter()
