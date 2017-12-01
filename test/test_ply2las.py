@@ -6,12 +6,13 @@ import logging
 
 from terrautils.metadata import get_terraref_metadata, clean_metadata
 from terrautils.extractors import load_json_file
-from science.ply2las import generate_las_from_pdal, combine_east_west_las, geo_referencing_las, \
+from scanner_3d.ply2las import generate_las_from_pdal, combine_east_west_las, geo_referencing_las, \
     geo_referencing_las_for_eachpoint_in_mac
 
+
 test_id = '85f9c8c2-fa68-48a6-b63c-375daa438414'
-path = os.path.join(os.path.dirname(__file__), test_id)
-dire = os.path.join(os.path.dirname(__file__))
+path = os.path.join(os.path.dirname(__file__), 'ply2las_doc', test_id)
+dire = os.path.join(os.path.dirname(__file__), 'ply2las_doc')
 
 
 class TestPly2las(unittest.TestCase):

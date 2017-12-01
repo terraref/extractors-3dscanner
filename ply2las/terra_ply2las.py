@@ -12,7 +12,7 @@ from terrautils.metadata import get_terraref_metadata
 from terrautils.extractors import TerrarefExtractor, is_latest_file, \
     build_dataset_hierarchy, build_metadata, load_json_file
 
-from science.ply2las import generate_las_from_pdal, combine_east_west_las, geo_referencing_las, \
+from scanner_3d.ply2las import generate_las_from_pdal, combine_east_west_las, geo_referencing_las, \
     geo_referencing_las_for_eachpoint_in_mac
 
 def add_local_arguments(parser):
