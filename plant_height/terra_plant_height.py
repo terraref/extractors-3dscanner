@@ -8,14 +8,14 @@ import numpy as np
 from pyclowder.utils import CheckMessage
 from pyclowder.files import upload_to_dataset
 from pyclowder.datasets import upload_metadata
-from terrautils.extractors import TerrarefExtractor, is_latest_file, create_image, \
-    build_metadata, calculate_gps_bounds, calculate_centroid, calculate_scan_time, \
-    build_dataset_hierarchy, geom_from_metadata
+from terrautils.extractors import TerrarefExtractor, is_latest_file,build_metadata
+from terrautils.spatial import calculate_gps_bounds, calculate_centroid, geom_from_metadata
 from terrautils.geostreams import create_datapoint_with_dependencies
-from terrautils.metadata import get_terraref_metadata
+from terrautils.metadata import get_terraref_metadata, calculate_scan_time
 
-from plyfile import PlyData, PlyElement
-import full_day_to_histogram
+
+from plyfile import PlyData
+from scanner_3d.plant_height import load_json, lower_keys, get_direction, gen_height_histogram_for_Roman
 
 
 class Ply2HeightEstimation(TerrarefExtractor):
@@ -61,11 +61,11 @@ class Ply2HeightEstimation(TerrarefExtractor):
         for fname in resource['local_paths']:
             # First check metadata attached to dataset in Clowder for item of interest
             if fname.endswith('_dataset_metadata.json'):
-                all_dsmd = full_day_to_histogram.load_json(fname)
+                all_dsmd = load_json(fname)
                 metadata = get_terraref_metadata(all_dsmd, 'scanner3DTop')
             # Otherwise, check if metadata was uploaded as a .json file
             elif fname.endswith('_metadata.json') and fname.find('/_metadata.json') == -1 and metadata is None:
-                metadata = full_day_to_histogram.lower_keys(full_day_to_histogram.load_json(fname))
+                metadata = lower_keys(load_json(fname))
             elif fname.endswith('-east_0.ply'):
                 ply_east = fname
             elif fname.endswith('-west_0.ply'):
@@ -83,13 +83,13 @@ class Ply2HeightEstimation(TerrarefExtractor):
         gantry_x, gantry_y, gantry_z, cambox_x, cambox_y, cambox_z, fov_x, fov_y = geom_from_metadata(metadata, side='west')
         z_height = float(gantry_z) + float(cambox_z)
         plydata = PlyData.read(str(ply_west))
-        scanDirection = full_day_to_histogram.get_direction(metadata)
+        scanDirection = get_direction(metadata)
 
         bounds = calculate_gps_bounds(metadata, 'laser3d_plant_height')
         sensor_latlon = calculate_centroid(bounds)
         logging.info("sensor lat/lon: %s" % str(sensor_latlon))
 
-        hist, highest = full_day_to_histogram.gen_height_histogram_for_Roman(plydata, scanDirection, 'w', z_height)
+        hist, highest = gen_height_histogram_for_Roman(plydata, scanDirection, 'w', z_height)
         # Convert numpy arrays to JSON
         highest_json = highest.reshape(1,32).tolist()[0]
         hist_json = hist.tolist()
