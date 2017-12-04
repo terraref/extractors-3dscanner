@@ -327,7 +327,7 @@ def insert_height_traits_into_betydb(in_dir, out_dir, str_date, param_percentile
                 
             str_time = str_date+'T12:00:00'
             traits['local_datetime'] = str_time
-            traits['canopy_height'] = str((B_F_SLOPE*float(estHeight) + B_F_OFFSET)/100.0)
+            traits['canopy_height'] = str((B_F_SLOPE*float(estHeight) + B_F_OFFSET))
             traits['site'] = parse_site_from_plotNum_1728(plotNum)
             trait_list = generate_traits_list_height(traits)
             csv.write(','.join(map(str, trait_list)) + '\n')
