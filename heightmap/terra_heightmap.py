@@ -105,20 +105,26 @@ class heightmap(TerrarefExtractor):
             create_geotiff(px_array, gps_bounds, mask_tif)
         os.remove(mask_bmp)
 
+        target_dsid = build_dataset_hierarchy(host, secret_key, self.clowder_user, self.clowder_pass, self.clowderspace,
+                                              self.sensors.get_display_name(),
+                                              timestamp[:4], timestamp[5:7],timestamp[8:10],
+                                              leaf_ds_name=self.sensors.get_display_name()+' - '+timestamp)
+
+
         # Upload all 2 outputs
         if os.path.isfile(out_tif):
             self.created += 1
             self.bytes += os.path.getsize(out_tif)
             # Send bmp output to Clowder source dataset if not already pointed to
             if out_tif not in resource["local_paths"]:
-                fileid = upload_to_dataset(connector, host, secret_key, resource['parent']['id'], out_tif)
+                fileid = upload_to_dataset(connector, host, secret_key, target_dsid, out_tif)
                 files_created.append(fileid)
         if os.path.isfile(mask_tif):
             self.created += 1
             self.bytes += os.path.getsize(mask_tif)
             # Send bmp output to Clowder source dataset if not already pointed to
             if mask_tif not in resource["local_paths"]:
-                fileid = upload_to_dataset(connector, host, secret_key, resource['parent']['id'], mask_tif)
+                fileid = upload_to_dataset(connector, host, secret_key, target_dsid, mask_tif)
                 files_created.append(fileid)
 
         # Tell Clowder this is completed so subsequent file updates don't daisy-chain
@@ -129,9 +135,9 @@ class heightmap(TerrarefExtractor):
         # Upload original Lemnatec metadata to new Level_1 dataset
         md = get_terraref_metadata(all_dsmd)
         md['raw_data_source'] = host + ("" if host.endswith("/") else "/") + "datasets/" + resource['id']
-        lemna_md = build_metadata(host, self.extractor_info, resource['parent']['id'], md, 'dataset')
+        lemna_md = build_metadata(host, self.extractor_info, target_dsid, md, 'dataset')
         self.log_info(resource, "uploading LemnaTec metadata")
-        upload_metadata(connector, host, secret_key, resource['parent']['id'], lemna_md)
+        upload_metadata(connector, host, secret_key, target_dsid, lemna_md)
 
         self.end_message()
 
