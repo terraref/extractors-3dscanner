@@ -1,4 +1,4 @@
-FROM ubuntu:14.04
+FROM terraref/terrautils
 MAINTAINER Solmaz Hajmohammadi <Solmaz.hajmohammadi@lemanatec.de>
 
 # Install any programs needed
@@ -9,43 +9,13 @@ RUN useradd -u 49044 extractor \
     && mkdir -p /home/extractor/sites/ua-mac/Level_1/scanner3DTop_heightmap \
     && chown -R extractor /home/extractor
 
-# Requirements for terrautils
-RUN cd /home/extractor \
-    && apt-get -q -y update \
-    && apt-get install -y --no-install-recommends build-essential \
-        software-properties-common \
-        gcc make wget byacc \
-        libpng-dev \
-        libjpeg8-dev \
-        libfreetype6-dev \
-        libnetcdf-dev \
-        libhdf5-dev \
-        libblas-dev \
-        liblapack-dev \
-        libatlas-base-dev \
-        libgdal-dev \
-        python-dev \
-        python-tk \
-    # Requirements for pyclowder
-        netcat \
-        python \
-        python-pip \
-        git \
-        gcc \
-        gfortran \
-    && add-apt-repository ppa:ubuntugis/ubuntugis-unstable \
-    && apt-get -q -y update \
-    && apt-get install -y python-gdal \
-    && pip install --upgrade pip setuptools \
-    && rm -rf /var/lib/apt/lists/*
-
 RUN mkdir -p /usr/src/app
 WORKDIR /usr/src/app
 
 # Various Python and C/build deps
 RUN apt-get update \
     && apt-get install -y \
-        wget \
+        git \
         cmake \
         unzip \
         pkg-config \
@@ -61,7 +31,6 @@ RUN apt-get update \
         webp \
         python-opencv \
         qt5-default \
-        #libvtk6-dev \
         zlib1g-dev
 
 # Install Open CV - Warning, this takes absolutely forever
@@ -99,18 +68,18 @@ RUN apt-get update && apt-get upgrade -y \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 RUN cd ~ \
-    && git clone https://github.com/Itseez/opencv.git \
-    && cd opencv \
-    && pwd \
-    && git checkout 3.1.0 \
-    && cd ~ \
-    && git clone https://github.com/Itseez/opencv_contrib.git \
-    && cd opencv_contrib \
-    && git checkout 3.1.0 \
+    && git clone https://github.com/Itseez/opencv.git --branch 3.1.0 \
+    && git clone https://github.com/Itseez/opencv_contrib.git --branch 3.1.0 \
     && cd /root/opencv \
     && mkdir build \
     && cd build \
     && cmake -D CMAKE_BUILD_TYPE=RELEASE  -D CMAKE_INSTALL_PREFIX=/usr/local  -D INSTALL_C_EXAMPLES=OFF  -D INSTALL_PYTHON_EXAMPLES=ON  -D OPENCV_EXTRA_MODULES_PATH=/root/opencv_contrib/modules -D BUILD_EXAMPLES=ON ..
+
+RUN apt-get update && apt-get install libhdf5-dev
+
+# BUGFIX: https://github.com/opencv/opencv/issues/6050#issuecomment-251684917
+RUN echo 'find_package(HDF5)' >> /root/opencv/modules/python/common.cmake \
+    && echo 'include_directories(${HDF5_INCLUDE_DIRS})' >> /root/opencv/modules/python/common.cmake
 
 RUN cd ~/opencv/build \
     && make -j $(nproc) \
@@ -139,11 +108,10 @@ RUN apt-get update \
         software-properties-common \
     --no-install-recommends
 
-RUN add-apt-repository ppa:v-launchpad-jochen-sprickerhof-de/pcl \
-    && apt-get update \
-    && apt-get install -y libffi-dev \
+RUN  apt-get install -y libffi-dev \
         libssl-dev \
-        libpcl-all
+        libproj-dev \
+        libpcl-dev
 
 RUN apt-get install -y build-essential \
     && pip install -U requests[security] \
@@ -153,17 +121,6 @@ RUN apt-get install -y build-essential \
         cython
 
 RUN pip install git+http://github.com/strawlab/python-pcl.git
-
-# Install pyclowder
-RUN cd /home/extractor \
-    && git clone https://opensource.ncsa.illinois.edu/bitbucket/scm/cats/pyclowder2.git \
-    && pip install --upgrade -r pyclowder2/requirements.txt \
-    && pip install --upgrade /home/extractor/pyclowder2
-# Install terrautils
-RUN cd /home/extractor \
-    && git clone https://github.com/terraref/terrautils.git \
-    && pip install --upgrade -r terrautils/requirements.txt \
-    && pip install --upgrade /home/extractor/terrautils
 
 # command to run when starting docker
 COPY entrypoint.sh extractor_info.json *.py *.cpp main PCLDLL.h CMakeLists.txt /home/extractor/

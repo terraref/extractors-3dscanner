@@ -49,8 +49,8 @@ class heightmap(TerrarefExtractor):
         
         # Create output in same directory as input, but check name
         ds_md = get_info(connector, host, secret_key, resource['parent']['id'])
-        terra_md = get_terraref_metadata(download_metadata(connector, host, secret_key,
-                                                           resource['parent']['id']), 'scanner3DTop')
+        all_dsmd = download_metadata(connector, host, secret_key, resource['parent']['id'])
+        terra_md = get_terraref_metadata(all_dsmd, 'scanner3DTop')
         if terra_md == {}:
             # Load & clean metadata.json file in equivalent raw_data directory
             ply_dir = os.path.dirname(resource['local_paths'][0])
@@ -125,6 +125,13 @@ class heightmap(TerrarefExtractor):
         extmd = build_metadata(host, self.extractor_info, resource['parent']['id'], {
             "files_created": files_created}, 'dataset')
         upload_metadata(connector, host, secret_key, resource['parent']['id'], extmd)
+
+        # Upload original Lemnatec metadata to new Level_1 dataset
+        md = get_terraref_metadata(all_dsmd)
+        md['raw_data_source'] = host + ("" if host.endswith("/") else "/") + "datasets/" + resource['id']
+        lemna_md = build_metadata(host, self.extractor_info, resource['parent']['id'], md, 'dataset')
+        self.log_info(resource, "uploading LemnaTec metadata")
+        upload_metadata(connector, host, secret_key, resource['parent']['id'], lemna_md)
 
         self.end_message()
 
