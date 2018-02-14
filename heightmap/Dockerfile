@@ -21,7 +21,6 @@ RUN apt-get update \
         pkg-config \
         libopencv-dev \
         libav-tools  \
-        libjpeg-dev \
         libtiff-dev \
         libjasper-dev \
         libgtk2.0-dev \
@@ -31,7 +30,30 @@ RUN apt-get update \
         webp \
         python-opencv \
         qt5-default \
-        zlib1g-dev
+        zlib1g-dev \
+        ca-certificates \
+        apparmor \
+        aufs-tools \
+        automake \
+        bash-completion \
+        curl \
+        dpkg-sig \
+        iptables \
+        libapparmor-dev \
+        libcap-dev \
+        libsqlite3-dev \
+        mercurial \
+        parallel \
+        python-mock \
+        python-websocket \
+        vim \
+        libffi-dev \
+        libssl-dev \
+        libproj-dev \
+        libavcodec-dev \
+        libavformat-dev \
+        libswscale-dev \
+        libv4l-dev
 
 # Install Open CV - Warning, this takes absolutely forever
 RUN mkdir -p ~/opencv cd ~/opencv \
@@ -54,14 +76,7 @@ RUN mkdir -p ~/opencv cd ~/opencv \
     && make install \
     && ldconfig
 
-RUN apt-get update && apt-get upgrade -y \
-    && apt-get install -y \
-        libpng12-dev \
-        libavcodec-dev \
-        libavformat-dev \
-        libswscale-dev \
-        libv4l-dev \
-    && pip install --upgrade pip \
+RUN pip install --upgrade pip \
     && pip install virtualenv virtualenvwrapper numpy \
     && rm -rf ~/.cache/pip \
     && apt-get autoclean && apt-get clean \
@@ -75,8 +90,6 @@ RUN cd ~ \
     && cd build \
     && cmake -D CMAKE_BUILD_TYPE=RELEASE  -D CMAKE_INSTALL_PREFIX=/usr/local  -D INSTALL_C_EXAMPLES=OFF  -D INSTALL_PYTHON_EXAMPLES=ON  -D OPENCV_EXTRA_MODULES_PATH=/root/opencv_contrib/modules -D BUILD_EXAMPLES=ON ..
 
-RUN apt-get update && apt-get install libhdf5-dev
-
 # BUGFIX: https://github.com/opencv/opencv/issues/6050#issuecomment-251684917
 RUN echo 'find_package(HDF5)' >> /root/opencv/modules/python/common.cmake \
     && echo 'include_directories(${HDF5_INCLUDE_DIRS})' >> /root/opencv/modules/python/common.cmake
@@ -85,37 +98,13 @@ RUN cd ~/opencv/build \
     && make -j $(nproc) \
     && make install \
     && ldconfig \
-    && cp ~/opencv/build/lib/cv2.so /usr/local/lib/python2.7/dist-packages/
+    && cp ~/opencv/build/lib/cv2.so /usr/local/lib/python2.7/dist-packages/ \
+    && rm -rf ~/opencv/build
 
 RUN apt-get update \
-    && apt-get install -y \
-        ca-certificates \
-        apparmor \
-        aufs-tools \
-        automake \
-        bash-completion \
-        curl \
-        dpkg-sig \
-        iptables \
-        libapparmor-dev \
-        libcap-dev \
-        libsqlite3-dev \
-        mercurial \
-        parallel \
-        python-mock \
-        python-websocket \
-        vim \
-        software-properties-common \
-    --no-install-recommends
-
-RUN  apt-get install -y libffi-dev \
-        libssl-dev \
-        libproj-dev \
-        libpcl-dev
-
-RUN apt-get install -y build-essential \
-    && pip install -U requests[security] \
-        pyopenssl \
+    && apt-get install -y libpcl-dev --no-install-recommends \
+    && pip install requests[security] \
+        -U pyOpenSSL \
         ndg-httpsclient \
         pyasn1 \
         cython
