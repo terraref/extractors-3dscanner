@@ -6,6 +6,7 @@ Created on Nov 17, 2016
 
 import os, sys, terra_common, argparse, shutil, math, colorsys
 import numpy as np
+import multiprocessing
 from numpy import linspace
 from glob import glob
 from PIL import Image
@@ -47,28 +48,49 @@ def main():
     
     args = options()
     
-    
-    if args.mode == 'all':
-        process_all_scanner_data(args.ply_dir, args.json_dir, args.out_dir)
-
+    # For a cluster batch process, the regular mode is date
     if args.mode == 'one':
         full_day_gen_angle_data(args.ply_dir, args.json_dir, args.out_dir)
         
         full_day_summary(args.out_dir)
         
     if args.mode == 'date':
-        process_one_month_data(args.ply_dir, args.json_dir, args.out_dir, args.year, args.month, args.start_date, args.end_date, args.save_dir)
+        process_angleData_by_date(args.ply_dir, args.json_dir, args.out_dir, args.year, args.month, args.start_date, args.end_date, args.save_dir)
     
     
     return
 
-def process_all_scanner_data(ply_parent, json_parent, out_parent):
+def full_day_gen_angle_multi_process(ply_path, json_path, out_path):
     
+    if not os.path.isdir(out_path):
+        os.makedirs(out_path)
     
+    list_dirs = [os.path.join(ply_path,o) for o in os.listdir(ply_path) if os.path.isdir(os.path.join(ply_path,o))]
+    json_dirs = [os.path.join(json_path,o) for o in os.listdir(ply_path) if os.path.isdir(os.path.join(ply_path,o))]
+    out_dirs = [os.path.join(out_path,o) for o in os.listdir(ply_path) if os.path.isdir(os.path.join(ply_path,o))]
+    numDirs = len(list_dirs)
+    
+    print "Starting ply to npy conversion..."
+    pool = multiprocessing.Pool()
+    NUM_THREADS = min(multiprocessing.cpu_count(),numDirs)
+    for cpu in range(NUM_THREADS):
+        pool.apply_async(ply_to_npy, [list_dirs[cpu::NUM_THREADS], json_dirs[cpu::NUM_THREADS], out_dirs[cpu::NUM_THREADS]])
+    pool.close()
+    pool.join()
+    print "Completed ply to npy conversion..."
     
     return
 
-def process_one_month_data(ply_parent, json_parent, out_parent, str_year, str_month, str_start_date, str_end_date, save_dir_parent):
+def ply_to_npy(ply_dirs, json_dirs, out_dirs):
+    for p, j, o in zip(ply_dirs, json_dirs, out_dirs):
+        #Generate angles from .ply
+        try:
+            create_angle_data(p, j, o)
+        except Exception as ex:
+            fail("\tFailed to process folder %s: %s" % (p, str(ex)))
+
+# main function
+def process_angleData_by_date(ply_parent, json_parent, out_parent, str_year, str_month, str_start_date, str_end_date, save_dir_parent):
     
     if not os.path.isdir(save_dir_parent):
         os.makedirs(save_dir_parent)
@@ -88,14 +110,17 @@ def process_one_month_data(ply_parent, json_parent, out_parent, str_year, str_mo
         try:
             
             q_flag = convt.bety_query(str_date)
-            #q_flag = convt.bety_query('2017-01-18')
             if not q_flag:
+                print('Bety query for boundaries failed')
                 continue
             
-            full_day_gen_angle_data(ply_path, json_path, out_path)
+            # create one days leaf angle by plot
+            full_day_gen_angle_multi_process(ply_path, json_path, out_path)
     
+            # full days angle hist summary
             full_day_summary(out_path, save_path)
             
+            # data uploading
             insert_leafAngle_traits_into_betydb(save_path, save_path, str_date)
         except Exception as ex:
             fail(str_date + str(ex))
@@ -108,6 +133,8 @@ def full_day_gen_angle_data(ply_path, json_path, out_path):
         os.mkdir(out_path)
     
     list_dirs = os.walk(ply_path)
+    
+    print('ply: %s, json: %s, out: %s'%(ply_path, json_path, out_path))
     
     for root, dirs, files in list_dirs:
         for d in dirs:
@@ -127,6 +154,7 @@ def full_day_gen_angle_data(ply_path, json_path, out_path):
     
     return
 
+# Create angle vis in reflected image from laser scanner
 def color_code_depth_img(ply_path, json_path, out_dir):
     
     windowSize = 4
@@ -159,6 +187,7 @@ def color_code_depth_img(ply_path, json_path, out_dir):
     pointSize = plydata.elements[0].count
     
     if nonZeroSize != pointSize:
+        print('Point counts do not match.')
         return
     
     gIndexImage = np.zeros(gWid*gHei)
@@ -397,6 +426,7 @@ def full_day_summary(in_dir, out_dir):
     list_dirs = os.walk(in_dir)
     angleHist = np.zeros((PLOT_COL_NUM*PLOT_RANGE_NUM, 90))
     relHist = np.zeros((PLOT_COL_NUM*PLOT_RANGE_NUM, 4))
+    chiHist = np.zeros((PLOT_COL_NUM*PLOT_RANGE_NUM, 2))
     HeightHist = []
     
     for root, dirs, files in list_dirs:
@@ -423,10 +453,17 @@ def full_day_summary(in_dir, out_dir):
     # generate beta fit
     for i in range(PLOT_COL_NUM*PLOT_RANGE_NUM):
         relHist[i, :] = calc_beta_distribution_value(angleHist[i])
+        chiHist[i, :] = calc_chi_fit_parameter(angleHist[i])
     chiHistHandle = os.path.join(out_dir, 'beta-distribution.txt')
     np.savetxt(chiHistHandle, relHist, delimiter="\t")
     betaNpyHandle = os.path.join(out_dir, 'beta-distribution.npy')
     np.save(betaNpyHandle, relHist)
+    
+    # generate chi fit
+    chiHistHandle = os.path.join(out_dir, 'chi-distribution.txt')
+    np.savetxt(chiHistHandle, chiHist, delimiter="\t")
+    npyHandle = os.path.join(out_dir, 'chi-distribution.npy')
+    np.save(npyHandle, chiHist)
     
     return
 
@@ -554,8 +591,7 @@ def get_position(metadata):
         
         sensor_fix_meta = metadata['lemnatec_measurement_metadata']['sensor_fixed_metadata']
         
-        camera_x = '2.070'#sensor_fix_meta['scanner west location in camera box x [m]']
-        # season 1 data don't have this parameter
+        camera_x = sensor_fix_meta['scanner west location in camera box x [m]']
 
     except KeyError as err:
         fail('Metadata file missing key: ' + err.args[0])
@@ -585,11 +621,6 @@ def find_result_files(in_dir):
     
     return jsons[0], npys
     
-    
-    return
-
-
-
 
 def get_offset_from_metadata(metadata):
     
@@ -628,6 +659,19 @@ def get_area_index(xCoord, yCoord, yOffset, gantry_x):
                 count = j + 1
     
     return count
+
+# Campbell distribution function
+def chi_distribution(t, init_chi, leaf_lambda):
+    
+    t = t * math.pi/2
+    
+    a = 2 * (init_chi ** 3) * np.sin(t)
+    b = leaf_lambda * (np.cos(t)**2 + (init_chi**2) *(np.sin(t)**2))**2
+    
+    ret = a/b
+    
+    return ret
+
 
 # beta distribution function
 def beta_distribution(t, tMean, tVar):
@@ -678,6 +722,54 @@ def get_mean_and_variance_from_angleHist(angleHist):
     
     return tMean, tVar
 
+def calc_init_chi(tMean):
+    
+    tMean = tMean * math.pi/2
+    
+    init_chi = -3 + pow(tMean/9.65, -0.6061)
+    
+    # not clear how to compute leaf lambda if init_chi > 1, use the approximate equation
+    # https://github.com/terraref/computing-pipeline/issues/338#issuecomment-357271181
+    leaf_lambda = init_chi + 1.774*pow(init_chi+1.182, -0.733)
+    '''
+    eata = pow(1-init_chi*init_chi, 0.5)
+    
+    if init_chi < 1:
+        leaf_lambda = init_chi + math.asin(eata)/eata
+    else:
+        leaf_lambda = init_chi + 
+    '''
+    
+    return init_chi, leaf_lambda
+
+def calc_chi_fit_parameter(np_x):
+    
+    if np.amax(np_x) < 5:
+        return -1
+    
+    if np.isnan(np.min(np_x)):
+        return -1
+    
+    angleHist = np_x / np.sum(np_x)
+    tMean, tVar = get_mean_and_variance_from_angleHist(angleHist)
+    init_chi, leaf_lambda = calc_init_chi(tMean)
+    x = linspace(0.01, 0.99, 90)
+    y = angleHist
+    delta_y = 90
+    y = y * delta_y
+    gmod = Model(chi_distribution)
+    try:
+        result = gmod.fit(y, t=x, init_chi = init_chi, leaf_lambda = leaf_lambda)
+    except ValueError as err:
+        print(err.args[0])
+    
+    rel = np.zeros(2)
+    rel[0] = init_chi
+    rel[1] = result.best_values['init_chi']
+    
+    return rel
+    
+    
 def calc_beta_distribution_value(np_x):
     
     if np.amax(np_x) < 5:
@@ -711,13 +803,19 @@ def load_leaf_angle_parameter(in_dir):
         return []
     relHist = np.load(betaNpyHandle)
     
-    return relHist
+    chiNpyHandle = os.path.join(in_dir, 'chi-distribution.npy')
+    if not os.path.exists(chiNpyHandle):
+        return []
+    chiHist = np.load(chiNpyHandle)
+    
+    return relHist, chiHist
 
 def get_traits_table_leafAngle():
     
     fields = ('local_datetime', 'access_level', 'species', 'site',
               'citation_author', 'citation_year', 'citation_title', 'method',
-              'leaf_angle_alpha_src', 'leaf_angle_beta_src', 'leaf_angle_alpha_fit', 'leaf_angle_beta_fit', 'entity')
+              'leaf_angle_alpha_src', 'leaf_angle_beta_src', 'leaf_angle_alpha_fit', 'leaf_angle_beta_fit',
+              'leaf_chi_src', 'leaf_chi_fit', 'entity')
     traits = {'local_datetime' : '',
               'access_level': '2',
               'species': 'Sorghum bicolor',
@@ -730,6 +828,8 @@ def get_traits_table_leafAngle():
               'leaf_angle_beta_src': [],
               'leaf_angle_alpha_fit': [],
               'leaf_angle_beta_fit': [],
+              'leaf_chi_src': [],
+              'leaf_chi_fit': [],
               'entity': ''}
 
     return (fields, traits)
@@ -762,7 +862,7 @@ def parse_site_from_plotNum_1728(plotNum):
     
     return rel
 
-def generate_traits_list_height(traits):
+def generate_traits_list(traits):
     # compose the summary traits
     trait_list = [  traits['local_datetime'],
                     traits['access_level'],
@@ -776,6 +876,8 @@ def generate_traits_list_height(traits):
                     traits['leaf_angle_beta_src'],
                     traits['leaf_angle_alpha_fit'],
                     traits['leaf_angle_beta_fit'],
+                    traits['leaf_chi_src'],
+                    traits['leaf_chi_fit'],
                     traits['entity'],
                 ]
 
@@ -786,7 +888,7 @@ def insert_leafAngle_traits_into_betydb(in_dir, out_dir, str_date):
     if not os.path.isdir(out_dir):
         os.makedirs(out_dir)
     
-    hist = load_leaf_angle_parameter(in_dir)
+    hist, chi_hist = load_leaf_angle_parameter(in_dir)
     
     out_file = os.path.join(out_dir, str_date+'_betaD.csv')
     csv = open(out_file, 'w')
@@ -797,6 +899,7 @@ def insert_leafAngle_traits_into_betydb(in_dir, out_dir, str_date):
         
     for j in range(0, PLOT_COL_NUM*PLOT_RANGE_NUM):
         targetHist = hist[j,:]
+        chiHist = chi_hist[j, :]
         plotNum = j+1
         if (targetHist.max() == -1):
             continue
@@ -807,14 +910,16 @@ def insert_leafAngle_traits_into_betydb(in_dir, out_dir, str_date):
             traits['leaf_angle_beta_src'] = targetHist[1]
             traits['leaf_angle_alpha_fit'] = targetHist[2]
             traits['leaf_angle_beta_fit'] = targetHist[3]
+            traits['leaf_chi_src'] = chiHist[0]
+            traits['leaf_chi_fit'] = chiHist[1]
             traits['site'] = parse_site_from_plotNum_1728(plotNum)
-            trait_list = generate_traits_list_height(traits)
+            trait_list = generate_traits_list(traits)
             csv.write(','.join(map(str, trait_list)) + '\n')
     
     
     csv.close()
-    #submitToBety(out_file)
-    betydb.submit_traits(out_file, filetype='csv', betykey=betydb.get_bety_key(), betyurl=betydb.get_bety_url())
+    # switch to submit traits
+    #betydb.submit_traits(out_file, filetype='csv', betykey=betydb.get_bety_key(), betyurl=betydb.get_bety_url())
     
     
     return
@@ -857,6 +962,51 @@ def draw_beta_distribution(in_dir, out_dir):
         plt.plot(x, result.best_fit, 'r-')
         plt.title('plot num: %d' % (i+1))
         textline = 'reduced chi-square: %f\ndotted line: initial fit by beta distribution\nred line: best fitted\nblue plot: LAD from laser scanner'%(result.redchi)
+        plt.annotate(textline, xy=(1, 1), xycoords='axes fraction',horizontalalignment='right', verticalalignment='top')
+        out_file = os.path.join(out_dir, str(i)+'.png')
+        plt.savefig(out_file)
+        plt.close()
+    
+    
+    return
+
+def draw_chi_distribution(in_dir, out_dir):
+    
+    filePath = os.path.join(in_dir, 'angleHist.npy')
+    
+    if not os.path.isdir(out_dir):
+        os.mkdir(out_dir)
+    
+    oneDayHist = np.load(filePath, 'r')
+    
+    for i in range(oneDayHist.size-1):
+        if np.amax(oneDayHist[i]) < 5:
+            continue
+        
+        if np.isnan(np.min(oneDayHist[i])):
+            continue
+    
+        angleHist = oneDayHist[i] / np.sum(oneDayHist[i])
+        
+        tMean, tVar = get_mean_and_variance_from_angleHist(angleHist)
+        init_chi, leaf_lambda = calc_init_chi(tMean)
+        x = linspace(0.01, 0.99, 90)
+        y = angleHist
+        delta_y = 90
+        y = y * delta_y
+        gmod = Model(chi_distribution)
+        try:
+            result = gmod.fit(y, t=x, init_chi = init_chi, leaf_lambda = leaf_lambda)
+        except ValueError as err:
+            print(err.args[0])
+        
+        print(result.fit_report())
+        
+        plt.plot(x,y, 'bo')
+        plt.plot(x, result.init_fit, 'k--')
+        plt.plot(x, result.best_fit, 'r-')
+        plt.title('plot num: %d' % (i+1))
+        textline = 'dotted line: initial fit by chi-distribution\nred line: best fitted\nblue plot: LAD from laser scanner'
         plt.annotate(textline, xy=(1, 1), xycoords='axes fraction',horizontalalignment='right', verticalalignment='top')
         out_file = os.path.join(out_dir, str(i)+'.png')
         plt.savefig(out_file)
@@ -951,5 +1101,5 @@ def fail(reason):
 
 
 if __name__ == "__main__":
-
+    
     main()

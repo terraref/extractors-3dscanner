@@ -6,7 +6,6 @@ Created on Sep 6, 2016
 import json, sys, utm
 import numpy as np
 from math import cos, pi
-sys.path.insert(0, '/Users/nijiang/Documents/JavaWorkSpace/pyTest/terrautils-master/')
 from terrautils.betydb import get_site_boundaries
 
 # Scanalyzer -> MAC formular @ https://terraref.gitbooks.io/terraref-documentation/content/user/geospatial-information.html
@@ -328,27 +327,6 @@ class CoordinateConverter(object):
                 plot_col = 1
             else:
                 plot_col = 16
-                
-            return plot_row, plot_col
-        
-        
-        plot_row = plotNum/cols +1
-        plot_col = col
-        if (plot_row % 2 == 0):
-            plot_col = cols - col + 1
-        
-        return plot_row, plot_col
-    
-    def plotNum_to_fieldPartition_32(self, plotNum):
-        "Converts plot number to field partition"
-        cols = 32
-        col = plotNum % cols
-        if col == 0:
-            plot_row = plotNum / cols
-            if (plot_row % 2 == 0):
-                plot_col = 1
-            else:
-                plot_col = 32
                 
             return plot_row, plot_col
         
