@@ -101,8 +101,21 @@ RUN cd ~/opencv/build \
     && cp ~/opencv/build/lib/cv2.so /usr/local/lib/python2.7/dist-packages/ \
     && rm -rf ~/opencv/build
 
+# https://larrylisky.com/2014/03/03/installing-pcl-on-ubuntu/
+RUN apt-get install -y libeigen3-dev \
+    && git clone https://github.com/PointCloudLibrary/pcl.git pcl-trunk \
+    && cd pcl-trunk \
+    && mkdir release \
+    && cd release \
+    && cmake -DCMAKE_BUILD_TYPE=None -DBUILD_GPU=ON -DBUILD_apps=ON -DBUILD_examples=ON .. \
+    && make && make install
+
 RUN apt-get update \
-    && apt-get install -y libpcl-dev --no-install-recommends \
+#    && add-apt-repository ppa:v-launchpad-jochen-sprickerhof-de/pcl \
+#    && apt-get update \
+#    && apt-get install libpcl-dev \
+    && apt-get install -y libtclap-dev \
+    # libpcl-dev
     && pip install requests[security] \
         -U pyOpenSSL \
         ndg-httpsclient \
@@ -111,8 +124,14 @@ RUN apt-get update \
 
 RUN pip install git+http://github.com/strawlab/python-pcl.git
 
+#RUN apt-get install libboost-system1.58-dev libboost-system1.58.0
+
 # command to run when starting docker
-COPY entrypoint.sh extractor_info.json *.py *.cpp main PCLDLL.h CMakeLists.txt /home/extractor/
+COPY entrypoint.sh extractor_info.json *.py *.cpp PCLDLL.h CMakeLists.txt /home/extractor/
+
+RUN ldconfig -p | grep libpcl
+
+RUN cd /home/extractor && gcc -o main 2DHeightMap.cpp
 
 USER extractor
 ENTRYPOINT ["/home/extractor/entrypoint.sh"]

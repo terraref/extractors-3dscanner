@@ -37,13 +37,13 @@ class heightmap(TerrarefExtractor):
         out_tif = self.sensors.get_sensor_path(timestamp, opts=[ply_side])
 
         if os.path.exists(out_tif):
-            logging.info("output file already exists; skipping %s" % resource['id'])
+            self.log_skip(resource, "output file already exists")
             return CheckMessage.ignore
 
         return CheckMessage.download
                           
     def process_message(self, connector, host, secret_key, resource, parameters):
-        self.start_message()
+        self.start_message(resource)
 
         input_ply = resource['local_paths'][0]
         
@@ -71,7 +71,7 @@ class heightmap(TerrarefExtractor):
                     upload_metadata(connector, host, secret_key, resource['parent']['id'], cleaned_md)
                     terra_md['sensor_fixed_metadata'] = get_sensor_fixed_metadata("ua-mac", "scanner3DTop")
             if terra_md == {}:
-                logging.error("no metadata found")
+                self.log_error(resource, "no metadata found")
                 return False
 
 
@@ -79,7 +79,7 @@ class heightmap(TerrarefExtractor):
         ply_side = 'west' if resource['name'].find('west') > -1 else 'east'
 
         if ply_side not in terra_md['spatial_metadata']:
-            logging.error("incompatible metadata format")
+            logging.log_error(resource, "incompatible metadata format")
             return False
 
         gps_bounds = geojson_to_tuples(terra_md['spatial_metadata'][ply_side]['bounding_box'])
@@ -90,7 +90,6 @@ class heightmap(TerrarefExtractor):
         files_created = []
 
         # Create BMPs first
-        logging.info("./main -i %s -o %s" % (input_ply, out_bmp.replace(".bmp", "")))
         subprocess.call(["./main -i %s -o %s" % (input_ply, out_bmp.replace(".bmp", ""))], shell=True)
 
         # Then convert BMP images to GeoTIFFs (flipping negative direction scans 180 degress)
@@ -139,7 +138,7 @@ class heightmap(TerrarefExtractor):
         self.log_info(resource, "uploading LemnaTec metadata")
         upload_metadata(connector, host, secret_key, target_dsid, lemna_md)
 
-        self.end_message()
+        self.end_message(resource)
 
 
 if __name__ == "__main__":
