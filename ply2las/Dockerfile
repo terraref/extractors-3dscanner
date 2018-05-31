@@ -12,14 +12,20 @@ RUN useradd -u 49044 extractor \
 RUN pip install laspy plyfile terraref-laser3d
 
 # Install Wine
+RUN dpkg --add-architecture i386 \
+    && wget -nc https://dl.winehq.org/wine-builds/Release.key \
+    && apt-key add Release.key \
+    && apt-add-repository https://dl.winehq.org/wine-builds/ubuntu/ \
+    && apt update
+    && apt install -y wine
+    && rm -rf /var/lib/apt/lists/*
+
+# Install PDAL
 RUN apt-get update \
-	&& apt-get install -y --no-install-recommends \
-		wine32 \
-		wine \
-	&& rm -rf /var/lib/apt/lists/*
+    && apt-get install -y pdal
 
 # Download lastools
-RUN wget http://lastools.org/download/lastools.zip && unzip lastools.zip
+#RUN wget http://lastools.org/download/lastools.zip && unzip lastools.zip
 
 # command to run when starting docker
 COPY entrypoint.sh extractor_info.json *.py /home/extractor/
