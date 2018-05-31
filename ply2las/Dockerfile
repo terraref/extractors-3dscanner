@@ -25,7 +25,7 @@ RUN apt-get update \
     && apt-get install -y pdal
 
 # Download lastools
-#RUN wget http://lastools.org/download/lastools.zip && unzip lastools.zip
+RUN wget http://lastools.org/download/lastools.zip && unzip lastools.zip
 
 # command to run when starting docker
 COPY entrypoint.sh extractor_info.json *.py /home/extractor/

@@ -20,6 +20,8 @@ from terrautils.metadata import get_terraref_metadata, clean_metadata, get_senso
 from terrautils.formats import create_geotiff
 from terrautils.spatial import geojson_to_tuples
 
+import terraref.laser3d
+
 
 class heightmap(TerrarefExtractor):
     def __init__(self):
@@ -82,28 +84,9 @@ class heightmap(TerrarefExtractor):
             logging.error("incompatible metadata format")
             return False
 
-        gps_bounds = geojson_to_tuples(terra_md['spatial_metadata'][ply_side]['bounding_box'])
         out_tif = self.sensors.create_sensor_path(timestamp, ext='', opts=[ply_side])
-        mask_tif = out_tif.replace(".tif", "_mask.tif")
-        out_bmp = out_tif.replace(".tif", ".bmp")
-        mask_bmp = out_tif.replace(".tif", "_mask.bmp")
+        terraref.laser3d.generate_tif_from_las(input_ply, out_tif)
         files_created = []
-
-        # Create BMPs first
-        logging.info("./main -i %s -o %s" % (input_ply, out_bmp.replace(".bmp", "")))
-        subprocess.call(["./main -i %s -o %s" % (input_ply, out_bmp.replace(".bmp", ""))], shell=True)
-
-        # Then convert BMP images to GeoTIFFs (flipping negative direction scans 180 degress)
-        with Image.open(out_bmp) as bmp:
-            px_array = numpy.array(bmp)
-            px_array = numpy.rot90(px_array, 3)
-            create_geotiff(px_array, gps_bounds, out_tif)
-        os.remove(out_bmp)
-        with Image.open(mask_bmp) as bmp:
-            px_array = numpy.array(bmp)
-            px_array = numpy.rot90(px_array, 3)
-            create_geotiff(px_array, gps_bounds, mask_tif)
-        os.remove(mask_bmp)
 
         # Upload all 2 outputs
         if os.path.isfile(out_tif):
@@ -112,13 +95,6 @@ class heightmap(TerrarefExtractor):
             # Send bmp output to Clowder source dataset if not already pointed to
             if out_tif not in resource["local_paths"]:
                 fileid = upload_to_dataset(connector, host, secret_key, resource['parent']['id'], out_tif)
-                files_created.append(fileid)
-        if os.path.isfile(mask_tif):
-            self.created += 1
-            self.bytes += os.path.getsize(mask_tif)
-            # Send bmp output to Clowder source dataset if not already pointed to
-            if mask_tif not in resource["local_paths"]:
-                fileid = upload_to_dataset(connector, host, secret_key, resource['parent']['id'], mask_tif)
                 files_created.append(fileid)
 
         # Tell Clowder this is completed so subsequent file updates don't daisy-chain
