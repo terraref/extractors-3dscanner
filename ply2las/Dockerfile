@@ -11,22 +11,6 @@ RUN useradd -u 49044 extractor \
 # Install laser3d science package
 RUN pip install laspy plyfile terraref-laser3d
 
-# Install Wine
-RUN dpkg --add-architecture i386 \
-    && wget -nc https://dl.winehq.org/wine-builds/Release.key \
-    && apt-key add Release.key \
-    && apt-add-repository https://dl.winehq.org/wine-builds/ubuntu/ \
-    && apt update
-    && apt install -y wine
-    && rm -rf /var/lib/apt/lists/*
-
-# Install PDAL
-RUN apt-get update \
-    && apt-get install -y pdal
-
-# Download lastools
-RUN wget http://lastools.org/download/lastools.zip && unzip lastools.zip
-
 # command to run when starting docker
 COPY entrypoint.sh extractor_info.json *.py /home/extractor/
 
@@ -40,6 +24,5 @@ CMD ["extractor"]
 # executed by entrypoint.sh
 ENV RABBITMQ_EXCHANGE="terra" \
     RABBITMQ_VHOST="%2F" \
-    RABBITMQ_QUEUE="terra.ply2las" \
-    RABBITMQ_URI="" \
+    RABBITMQ_QUEUE="terra.3dscanner.ply2las" \
     MAIN_SCRIPT="terra_ply2las.py"
