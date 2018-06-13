@@ -17,8 +17,8 @@ RUN dpkg --add-architecture i386 \
     && wget -nc https://dl.winehq.org/wine-builds/Release.key \
     && apt-key add Release.key \
     && apt-add-repository https://dl.winehq.org/wine-builds/ubuntu/ \
-    && apt update
-    && apt install -y wine
+    && apt update \
+    && apt install -y wine \
     && rm -rf /var/lib/apt/lists/*
 
 # Install PDAL
