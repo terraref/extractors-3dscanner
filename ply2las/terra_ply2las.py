@@ -73,6 +73,9 @@ class Ply2LasConverter(TerrarefExtractor):
             self.log_info(resource, "Creating %s" % out_las)
             self.execute_threaded_conversion([east_ply, west_ply], out_las, terra_md)
 
+            self.created += 1
+            self.bytes += os.path.getsize(out_las)
+
             if os.path.isfile(out_las) and out_las not in resource["local_paths"]:
                 target_dsid = build_dataset_hierarchy(host, secret_key, self.clowder_user, self.clowder_pass, self.clowderspace,
                                                       self.sensors.get_display_name(),
@@ -90,9 +93,6 @@ class Ply2LasConverter(TerrarefExtractor):
                 fileid = upload_to_dataset(connector, host, secret_key, target_dsid, out_las)
                 uploaded_file_ids.append(fileid)
 
-            self.created += 1
-            self.bytes += os.path.getsize(out_las)
-
             # Tell Clowder this is completed so subsequent file updates don't daisy-chain
             metadata = build_metadata(host, self.extractor_info, resource['id'], {
                 "files_created": [host + ("" if host.endswith("/") else "/") + "files/" + fileid]}, 'dataset')
@@ -104,7 +104,7 @@ class Ply2LasConverter(TerrarefExtractor):
         with open("convert.py", 'w') as scriptfile:
             scriptfile.write("import json\n")
             scriptfile.write("import terraref.laser3d\n")
-            scriptfile.write("terraref.laser3d.generate_las_from_ply("+str(ply_list)+", '"+out_las+"', 'east', "+
+            scriptfile.write("terraref.laser3d.generate_las_from_ply("+str(ply_list)+", '"+out_las+"', "+
                              json.dumps(md).replace("true", "True")+")")
 
         subprocess.call(["python convert.py"], shell=True)

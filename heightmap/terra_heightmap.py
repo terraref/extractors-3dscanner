@@ -8,6 +8,7 @@ This extractor will trigger when a PLY file is uploaded into Clowder. It will cr
 import os
 import logging
 import subprocess
+import json
 import numpy
 from PIL import Image
 
@@ -46,63 +47,62 @@ class heightmap(TerrarefExtractor):
                           
     def process_message(self, connector, host, secret_key, resource, parameters):
         self.start_message()
+        uploaded_file_ids = []
 
-        input_ply = resource['local_paths'][0]
-        
+        east_ply = None
+        west_ply = None
+        for p in resource['local_paths']:
+            if p.endswith(".ply"):
+                if p.find("east") > -1:
+                    east_ply = p
+                elif p.find("west") > -1:
+                    west_ply = p
+            elif p.endswith('_dataset_metadata.json'):
+                all_dsmd = load_json_file(p)
+                terra_md = get_terraref_metadata(all_dsmd)
+
         # Create output in same directory as input, but check name
-        ds_md = get_info(connector, host, secret_key, resource['parent']['id'])
-        terra_md = get_terraref_metadata(download_metadata(connector, host, secret_key,
-                                                           resource['parent']['id']), 'scanner3DTop')
-        if terra_md == {}:
-            # Load & clean metadata.json file in equivalent raw_data directory
-            ply_dir = os.path.dirname(resource['local_paths'][0])
-            md_dir = ply_dir.replace("Level_1", "raw_data")
-            for mdf in os.listdir(md_dir):
-                if mdf.endswith("metadata.json"):
-                    terra_md = clean_metadata(load_json_file(os.path.join(md_dir,mdf)), "scanner3DTop")
-                    # Go ahead and add it to the dataset
-                    cleaned_md = {
-                        "@context": ["https://clowder.ncsa.illinois.edu/contexts/metadata.jsonld",
-                                     {"@vocab": "https://terraref.ncsa.illinois.edu/metadata/uamac#"}],
-                        "content": terra_md,
-                        "agent": {
-                            "@type": "cat:user",
-                            "user_id": "https://terraref.ncsa.illinois.edu/clowder/api/users/57adcb81c0a7465986583df1"
-                        }
-                    }
-                    upload_metadata(connector, host, secret_key, resource['parent']['id'], cleaned_md)
-                    terra_md['sensor_fixed_metadata'] = get_sensor_fixed_metadata("ua-mac", "scanner3DTop")
-            if terra_md == {}:
-                logging.error("no metadata found")
-                return False
+        timestamp = resource['dataset_info']['name'].split(" - ")[1]
+        out_tif = self.sensors.create_sensor_path(timestamp)
 
-
-        timestamp = ds_md['name'].split(" - ")[1]
-        ply_side = 'west' if resource['name'].find('west') > -1 else 'east'
-
-        if ply_side not in terra_md['spatial_metadata']:
-            logging.error("incompatible metadata format")
-            return False
-
-        out_tif = self.sensors.create_sensor_path(timestamp, ext='', opts=[ply_side])
-        terraref.laser3d.generate_tif_from_las(input_ply, out_tif)
-        files_created = []
-
-        # Upload all 2 outputs
-        if os.path.isfile(out_tif):
+        if not os.path.exists(out_tif) or self.overwrite:
+            self.log_info(resource, "Creating %s" % out_tif)
+            self.execute_threaded_conversion([east_ply, west_ply], out_tif, terra_md)
             self.created += 1
             self.bytes += os.path.getsize(out_tif)
-            # Send bmp output to Clowder source dataset if not already pointed to
-            if out_tif not in resource["local_paths"]:
-                fileid = upload_to_dataset(connector, host, secret_key, resource['parent']['id'], out_tif)
-                files_created.append(fileid)
 
-        # Tell Clowder this is completed so subsequent file updates don't daisy-chain
-        extmd = build_metadata(host, self.extractor_info, resource['parent']['id'], {
-            "files_created": files_created}, 'dataset')
-        upload_metadata(connector, host, secret_key, resource['parent']['id'], extmd)
+            if os.path.isfile(out_tif) and out_tif not in resource["local_paths"]:
+                target_dsid = build_dataset_hierarchy(host, secret_key, self.clowder_user, self.clowder_pass, self.clowderspace,
+                                                      self.sensors.get_display_name(),
+                                                      timestamp[:4], timestamp[5:7],timestamp[8:10],
+                                                      leaf_ds_name=self.sensors.get_display_name()+' - '+timestamp)
 
-        self.end_message()
+                self.log_info(resource, "Uploading metadata")
+                # Upload original Lemnatec metadata to new Level_1 dataset
+                terra_md['raw_data_source'] = host + ("" if host.endswith("/") else "/") + "datasets/" + resource['id']
+                lemna_md = build_metadata(host, self.extractor_info, target_dsid, terra_md, 'dataset')
+                upload_metadata(connector, host, secret_key, target_dsid, lemna_md)
+
+                self.log_info(resource, "Uploading TIF file to Clowder")
+                # Send LAS output to Clowder source dataset
+                fileid = upload_to_dataset(connector, host, secret_key, target_dsid, out_tif)
+                uploaded_file_ids.append(fileid)
+
+            # Tell Clowder this is completed so subsequent file updates don't daisy-chain
+            metadata = build_metadata(host, self.extractor_info, resource['id'], {
+                "files_created": [host + ("" if host.endswith("/") else "/") + "files/" + fileid]}, 'dataset')
+            upload_metadata(connector, host, secret_key, resource['id'], metadata)
+
+            self.end_message(resource)
+
+    def execute_threaded_conversion(self, ply_list, out_tif, md):
+        with open("convert.py", 'w') as scriptfile:
+            scriptfile.write("import json\n")
+            scriptfile.write("import terraref.laser3d\n")
+            scriptfile.write("terraref.laser3d.generate_tif_from_ply("+str(ply_list)+", '"+out_tif+"', "+
+                             json.dumps(md).replace("true", "True")+")")
+
+        subprocess.call(["python convert.py"], shell=True)
 
 
 if __name__ == "__main__":
