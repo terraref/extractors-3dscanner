@@ -11,8 +11,6 @@ from terrautils.metadata import get_terraref_metadata
 from terrautils.extractors import TerrarefExtractor, is_latest_file, \
     build_dataset_hierarchy, build_metadata, load_json_file
 
-import terraref.laser3d
-
 
 class Ply2LasConverter(TerrarefExtractor):
     def __init__(self):
@@ -70,6 +68,8 @@ class Ply2LasConverter(TerrarefExtractor):
         out_las = self.sensors.create_sensor_path(timestamp)
 
         if not os.path.exists(out_las) or self.overwrite:
+            self.log_info(resource, "East: %s" % east_ply)
+            self.log_info(resource, "West: %s" % west_ply)
             self.log_info(resource, "Creating %s" % out_las)
             self.execute_threaded_conversion([east_ply, west_ply], out_las, terra_md)
 

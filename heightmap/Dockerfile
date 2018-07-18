@@ -12,17 +12,6 @@ RUN useradd -u 49044 extractor \
 # Install laser3d science package
 RUN pip install laspy plyfile terraref-laser3d
 
-# Install Wine
-RUN dpkg --add-architecture i386 \
-    && apt update \
-    && echo ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true | debconf-set-selections \
-    && apt-get install -y ttf-mscorefonts-installer \
-    && wget -nc http://dl.winehq.org/wine-builds/Release.key \
-    && apt-key add Release.key \
-    && apt-add-repository http://dl.winehq.org/wine-builds/ubuntu/ \
-    && apt install -y wine \
-    && rm -rf /var/lib/apt/lists/*
-
 # Install PDAL
 RUN apt-get update \
     && apt-get install -y pdal

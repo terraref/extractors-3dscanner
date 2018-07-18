@@ -9,8 +9,6 @@ import os
 import logging
 import subprocess
 import json
-import numpy
-from PIL import Image
 
 from pyclowder.utils import CheckMessage
 from pyclowder.datasets import get_info, upload_metadata, download_metadata
@@ -18,8 +16,6 @@ from pyclowder.files import upload_to_dataset
 from terrautils.extractors import TerrarefExtractor, is_latest_file, build_dataset_hierarchy, \
     build_metadata, load_json_file
 from terrautils.metadata import get_terraref_metadata, clean_metadata, get_sensor_fixed_metadata
-from terrautils.formats import create_geotiff
-from terrautils.spatial import geojson_to_tuples
 
 import terraref.laser3d
 
@@ -33,20 +29,34 @@ class heightmap(TerrarefExtractor):
 
     # Check whether dataset already has metadata
     def check_message(self, connector, host, secret_key, resource, parameters):
-        # Check not an bmp file already
-        ds_md = get_info(connector, host, secret_key, resource['parent']['id'])
-        timestamp = ds_md['name'].split(" - ")[1]
-        ply_side = 'west' if resource['name'].find('west') > -1 else 'east'
-        out_tif = self.sensors.get_sensor_path(timestamp, opts=[ply_side])
+        if "rulechecked" in parameters and parameters["rulechecked"]:
+            return CheckMessage.download
 
-        if os.path.exists(out_tif):
-            logging.info("output file already exists; skipping %s" % resource['id'])
+        if not is_latest_file(resource):
             return CheckMessage.ignore
 
-        return CheckMessage.download
+        # Check if we have 2 PLY files, but not an LAS file already
+        east_ply = None
+        west_ply = None
+        for p in resource['files']:
+            if p['filename'].endswith(".ply"):
+                if p['filename'].find("east") > -1:
+                    east_ply = p['filepath']
+                elif p['filename'].find("west") > -1:
+                    west_ply = p['filepath']
+
+        if east_ply and west_ply:
+            timestamp = resource['dataset_info']['name'].split(" - ")[1]
+            out_tif = self.sensors.get_sensor_path(timestamp)
+            if os.path.exists(out_tif) and not self.overwrite:
+                self.log_skip(resource, "output TIF file already exists")
+            else:
+                return CheckMessage.download
+
+        return CheckMessage.ignore
                           
     def process_message(self, connector, host, secret_key, resource, parameters):
-        self.start_message()
+        self.start_message(resource)
         uploaded_file_ids = []
 
         east_ply = None
@@ -66,8 +76,11 @@ class heightmap(TerrarefExtractor):
         out_tif = self.sensors.create_sensor_path(timestamp)
 
         if not os.path.exists(out_tif) or self.overwrite:
+            self.log_info(resource, "East: %s" % east_ply)
+            self.log_info(resource, "West: %s" % west_ply)
             self.log_info(resource, "Creating %s" % out_tif)
             self.execute_threaded_conversion([east_ply, west_ply], out_tif, terra_md)
+
             self.created += 1
             self.bytes += os.path.getsize(out_tif)
 
