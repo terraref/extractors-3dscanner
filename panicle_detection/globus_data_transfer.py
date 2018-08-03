@@ -1,7 +1,7 @@
 import logging
 from globus_sdk import NativeAppAuthClient, TransferClient, TransferData, RefreshTokenAuthorizer
 
-CLIENT_ID = '53669bb5-f588-4c3a-8556-e416ed228a36'
+CLIENT_ID = ''
 
 
 class Transfer:
