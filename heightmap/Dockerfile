@@ -1,5 +1,5 @@
-FROM ubuntu:14.04
-MAINTAINER Solmaz Hajmohammadi <Solmaz.hajmohammadi@lemanatec.de>
+FROM terraref/terrautils
+MAINTAINER Max Burnette <mburnet2@illinois.edu>
 
 # Install any programs needed
 RUN useradd -u 49044 extractor \
@@ -9,164 +9,15 @@ RUN useradd -u 49044 extractor \
     && mkdir -p /home/extractor/sites/ua-mac/Level_1/scanner3DTop_heightmap \
     && chown -R extractor /home/extractor
 
-# Requirements for terrautils
-RUN cd /home/extractor \
-    && apt-get -q -y update \
-    && apt-get install -y --no-install-recommends build-essential \
-        software-properties-common \
-        gcc make wget byacc \
-        libpng-dev \
-        libjpeg8-dev \
-        libfreetype6-dev \
-        libnetcdf-dev \
-        libhdf5-dev \
-        libblas-dev \
-        liblapack-dev \
-        libatlas-base-dev \
-        libgdal-dev \
-        python-dev \
-        python-tk \
-    # Requirements for pyclowder
-        netcat \
-        python \
-        python-pip \
-        git \
-        gcc \
-        gfortran \
-    && add-apt-repository ppa:ubuntugis/ubuntugis-unstable \
-    && apt-get -q -y update \
-    && apt-get install -y python-gdal \
-    && pip install --upgrade pip setuptools \
-    && rm -rf /var/lib/apt/lists/*
+# Install laser3d science package
+RUN pip install laspy plyfile terraref-laser3d
 
-RUN mkdir -p /usr/src/app
-WORKDIR /usr/src/app
-
-# Various Python and C/build deps
+# Install PDAL
 RUN apt-get update \
-    && apt-get install -y \
-        wget \
-        cmake \
-        unzip \
-        pkg-config \
-        libopencv-dev \
-        libav-tools  \
-        libjpeg-dev \
-        libtiff-dev \
-        libjasper-dev \
-        libgtk2.0-dev \
-        python-numpy \
-        python-pycurl \
-        libatlas-base-dev \
-        webp \
-        python-opencv \
-        qt5-default \
-        #libvtk6-dev \
-        zlib1g-dev
-
-# Install Open CV - Warning, this takes absolutely forever
-RUN mkdir -p ~/opencv cd ~/opencv \
-    && wget https://github.com/Itseez/opencv/archive/3.0.0.zip \
-    && unzip 3.0.0.zip \
-    && rm 3.0.0.zip \
-    && mv opencv-3.0.0 OpenCV \
-    && cd OpenCV \
-    && mkdir build \
-    && cd build \
-    && cmake \
-        -DWITH_QT=ON \
-        -DWITH_OPENGL=ON \
-        -DFORCE_VTK=ON \
-        -DWITH_TBB=ON \
-        -DWITH_GDAL=ON \
-        -DWITH_XINE=ON \
-        -DBUILD_EXAMPLES=ON .. \
-    && make -j4 \
-    && make install \
-    && ldconfig
-
-RUN apt-get update && apt-get upgrade -y \
-    && apt-get install -y \
-        libpng12-dev \
-        libavcodec-dev \
-        libavformat-dev \
-        libswscale-dev \
-        libv4l-dev \
-    && pip install --upgrade pip \
-    && pip install virtualenv virtualenvwrapper numpy \
-    && rm -rf ~/.cache/pip \
-    && apt-get autoclean && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
-
-RUN cd ~ \
-    && git clone https://github.com/Itseez/opencv.git \
-    && cd opencv \
-    && pwd \
-    && git checkout 3.1.0 \
-    && cd ~ \
-    && git clone https://github.com/Itseez/opencv_contrib.git \
-    && cd opencv_contrib \
-    && git checkout 3.1.0 \
-    && cd /root/opencv \
-    && mkdir build \
-    && cd build \
-    && cmake -D CMAKE_BUILD_TYPE=RELEASE  -D CMAKE_INSTALL_PREFIX=/usr/local  -D INSTALL_C_EXAMPLES=OFF  -D INSTALL_PYTHON_EXAMPLES=ON  -D OPENCV_EXTRA_MODULES_PATH=/root/opencv_contrib/modules -D BUILD_EXAMPLES=ON ..
-
-RUN cd ~/opencv/build \
-    && make -j $(nproc) \
-    && make install \
-    && ldconfig \
-    && cp ~/opencv/build/lib/cv2.so /usr/local/lib/python2.7/dist-packages/
-
-RUN apt-get update \
-    && apt-get install -y \
-        ca-certificates \
-        apparmor \
-        aufs-tools \
-        automake \
-        bash-completion \
-        curl \
-        dpkg-sig \
-        iptables \
-        libapparmor-dev \
-        libcap-dev \
-        libsqlite3-dev \
-        mercurial \
-        parallel \
-        python-mock \
-        python-websocket \
-        vim \
-        software-properties-common \
-    --no-install-recommends
-
-RUN add-apt-repository ppa:v-launchpad-jochen-sprickerhof-de/pcl \
-    && apt-get update \
-    && apt-get install -y libffi-dev \
-        libssl-dev \
-        libpcl-all
-
-RUN apt-get install -y build-essential \
-    && pip install -U requests[security] \
-        pyopenssl \
-        ndg-httpsclient \
-        pyasn1 \
-        cython
-
-RUN pip install git+http://github.com/strawlab/python-pcl.git
-
-# Install pyclowder
-RUN cd /home/extractor \
-    && git clone https://opensource.ncsa.illinois.edu/bitbucket/scm/cats/pyclowder2.git \
-    && pip install --upgrade -r pyclowder2/requirements.txt \
-    && pip install --upgrade /home/extractor/pyclowder2
-# Install terrautils
-RUN cd /home/extractor \
-    && git clone https://github.com/terraref/terrautils.git \
-    && pip install --upgrade -r terrautils/requirements.txt \
-    && pip install --upgrade /home/extractor/terrautils
+    && apt-get install -y pdal
 
 # command to run when starting docker
-COPY entrypoint.sh extractor_info.json *.py *.cpp main PCLDLL.h CMakeLists.txt /home/extractor/
+COPY entrypoint.sh extractor_info.json *.py /home/extractor/
 
 USER extractor
 ENTRYPOINT ["/home/extractor/entrypoint.sh"]
