@@ -14,7 +14,7 @@ from pyclowder.utils import CheckMessage
 from pyclowder.datasets import get_info, upload_metadata, download_metadata
 from pyclowder.files import upload_to_dataset
 from terrautils.extractors import TerrarefExtractor, is_latest_file, build_dataset_hierarchy, \
-    build_metadata, load_json_file
+    build_metadata, load_json_file, file_exists
 from terrautils.metadata import get_terraref_metadata, clean_metadata, get_sensor_fixed_metadata
 
 import terraref.laser3d
@@ -48,7 +48,7 @@ class heightmap(TerrarefExtractor):
         if east_ply and west_ply:
             timestamp = resource['dataset_info']['name'].split(" - ")[1]
             out_tif = self.sensors.get_sensor_path(timestamp)
-            if os.path.exists(out_tif) and not self.overwrite:
+            if file_exists(out_tif) and not self.overwrite:
                 self.log_skip(resource, "output TIF file already exists")
             else:
                 return CheckMessage.download
@@ -75,7 +75,7 @@ class heightmap(TerrarefExtractor):
         timestamp = resource['dataset_info']['name'].split(" - ")[1]
         out_tif = self.sensors.create_sensor_path(timestamp)
 
-        if not os.path.exists(out_tif) or self.overwrite:
+        if not file_exists(out_tif) or self.overwrite:
             self.log_info(resource, "East: %s" % east_ply)
             self.log_info(resource, "West: %s" % west_ply)
             self.log_info(resource, "Creating %s" % out_tif)
@@ -84,7 +84,7 @@ class heightmap(TerrarefExtractor):
             self.created += 1
             self.bytes += os.path.getsize(out_tif)
 
-            if os.path.isfile(out_tif) and out_tif not in resource["local_paths"]:
+            if file_exists(out_tif) and out_tif not in resource["local_paths"]:
                 target_dsid = build_dataset_hierarchy(host, secret_key, self.clowder_user, self.clowder_pass, self.clowderspace,
                                                       self.sensors.get_display_name(),
                                                       timestamp[:4], timestamp[5:7],timestamp[8:10],
