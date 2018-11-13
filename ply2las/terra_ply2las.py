@@ -6,7 +6,7 @@ import subprocess
 
 from pyclowder.utils import CheckMessage
 from pyclowder.files import upload_to_dataset
-from pyclowder.datasets import upload_metadata
+from pyclowder.datasets import upload_metadata, download_metadata, remove_metadata
 from terrautils.metadata import get_terraref_metadata
 from terrautils.lemnatec import _get_experiment_metadata
 from terrautils.extractors import TerrarefExtractor, is_latest_file, \
@@ -118,11 +118,18 @@ class Ply2LasConverter(TerrarefExtractor):
                                                       timestamp[:4], timestamp[5:7],timestamp[8:10],
                                                       leaf_ds_name=self.sensors.get_display_name()+' - '+timestamp)
 
-                self.log_info(resource, "Uploading metadata")
+                self.log_info(resource, "uploading LemnaTec metadata to ds [%s]" % target_dsid)
                 # Upload original Lemnatec metadata to new Level_1 dataset
-                terra_md['raw_data_source'] = host + ("" if host.endswith("/") else "/") + "datasets/" + resource['id']
-                lemna_md = build_metadata(host, self.extractor_info, target_dsid, terra_md, 'dataset')
-                upload_metadata(connector, host, secret_key, target_dsid, lemna_md)
+                remove_metadata(connector, host, secret_key, target_dsid, self.extractor_info['name'])
+                terra_md_trim = get_terraref_metadata(all_dsmd)
+                if updated_experiment:
+                    terra_md_trim['experiment_metadata'] = expmd
+                terra_md_trim['raw_data_source'] = host + ("" if host.endswith("/") else "/") + "datasets/" + resource['id']
+                level1_md = build_metadata(host, self.extractor_info, target_dsid, terra_md_trim, 'dataset')
+                upload_metadata(connector, host, secret_key, target_dsid, level1_md)
+                # terra_md['raw_data_source'] = host + ("" if host.endswith("/") else "/") + "datasets/" + resource['id']
+                # lemna_md = build_metadata(host, self.extractor_info, target_dsid, terra_md, 'dataset')
+                # upload_metadata(connector, host, secret_key, target_dsid, lemna_md)
 
                 self.log_info(resource, "Uploading LAS file to Clowder")
                 # Send LAS output to Clowder source dataset
