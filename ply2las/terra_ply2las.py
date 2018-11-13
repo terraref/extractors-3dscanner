@@ -8,6 +8,7 @@ from pyclowder.utils import CheckMessage
 from pyclowder.files import upload_to_dataset
 from pyclowder.datasets import upload_metadata
 from terrautils.metadata import get_terraref_metadata
+from terrautils.lemnatec import _get_experiment_metadata
 from terrautils.extractors import TerrarefExtractor, is_latest_file, \
     build_dataset_hierarchy, build_metadata, load_json_file, file_exists
 
@@ -66,6 +67,41 @@ class Ply2LasConverter(TerrarefExtractor):
         # Create output in same directory as input, but check name
         timestamp = resource['dataset_info']['name'].split(" - ")[1]
         out_las = self.sensors.create_sensor_path(timestamp)
+
+        # Fetch experiment name from terra metadata
+        season_name = None
+        experiment_name = None
+        updated_experiment = False
+        if 'experiment_metadata' in terra_md and len(terra_md['experiment_metadata']) > 0:
+            for experiment in terra_md['experiment_metadata']:
+                if 'name' in experiment:
+                    if ":" in experiment['name']:
+                        season_name = experiment['name'].split(": ")[0]
+                        experiment_name = experiment['name'].split(": ")[1]
+                    else:
+                        experiment_name = experiment['name']
+                        season_name = None
+                    break
+        else:
+            # Try to determine experiment data dynamically
+            expmd = _get_experiment_metadata(timestamp.split("__")[0], 'flirIrCamera')
+            if len(expmd) > 0:
+                updated_experiment = True
+                for experiment in expmd:
+                    if 'name' in experiment:
+                        if ":" in experiment['name']:
+                            season_name = experiment['name'].split(": ")[0]
+                            experiment_name = experiment['name'].split(": ")[1]
+                        else:
+                            experiment_name = experiment['name']
+                            season_name = None
+                        break
+        if season_name is None:
+            season_name = 'Unknown Season'
+        if experiment_name is None:
+            experiment_name = 'Unknown Experiment'
+
+
 
         if not file_exists(out_las) or self.overwrite:
             self.log_info(resource, "East: %s" % east_ply)
