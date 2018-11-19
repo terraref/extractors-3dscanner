@@ -1,4 +1,4 @@
-FROM terraref/terrautils:1.2
+FROM terraref/terrautils:1.4
 MAINTAINER Max Burnette <mburnet2@illinois.edu>
 
 # Install any programs needed
@@ -21,6 +21,5 @@ CMD ["extractor"]
 ENV RABBITMQ_EXCHANGE="terra" \
     RABBITMQ_VHOST="%2F" \
     RABBITMQ_QUEUE="terra.3dscanner.ply2las" \
-    MOUNTED_PATHS='{"home/clowder/sites":"/home/extractor/sites"}' \
     MAIN_SCRIPT="terra_ply2las.py" \
     CLOWDER_SPACE="5bdc8f174f0cb2fdaaf3148e"
