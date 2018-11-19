@@ -93,7 +93,7 @@ class Ply2LasConverter(TerrarefExtractor):
 
         if not file_exists(out_las) or self.overwrite:
             # Perform actual processing
-            self.log(resource, "creating & uploading %s" % out_las)
+            self.log_info(resource, "creating & uploading %s" % out_las)
             self.execute_threaded_conversion([east_ply, west_ply], out_las, terra_md_full)
 
             # Only upload the newly generated file to Clowder if it isn't already in dataset
