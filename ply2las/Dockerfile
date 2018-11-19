@@ -1,18 +1,17 @@
-FROM terraref/terrautils:1.2
+FROM terraref/terrautils:1.4
 MAINTAINER Max Burnette <mburnet2@illinois.edu>
 
 # Install any programs needed
-RUN useradd -u 49044 extractor \
-    && mkdir -p /home/extractor/sites/ua-mac/raw_data \
-    && mkdir -p /home/extractor/sites/ua-mac/Level_1/scanner3DTop \
-    && mkdir -p /home/extractor/sites/ua-mac/Level_1/scanner3DTop_mergedlas \
-    && chown -R extractor /home/extractor
+RUN useradd -u 49044 extractor
 
 # Install laser3d science package
 RUN pip install laspy plyfile terraref-laser3d
 
 # command to run when starting docker
 COPY entrypoint.sh extractor_info.json *.py /home/extractor/
+
+# Change permissions for writing temporary convert.py file
+RUN chown -R extractor /home/extractor
 
 USER extractor
 ENTRYPOINT ["/home/extractor/entrypoint.sh"]
@@ -25,4 +24,5 @@ CMD ["extractor"]
 ENV RABBITMQ_EXCHANGE="terra" \
     RABBITMQ_VHOST="%2F" \
     RABBITMQ_QUEUE="terra.3dscanner.ply2las" \
-    MAIN_SCRIPT="terra_ply2las.py"
+    MAIN_SCRIPT="terra_ply2las.py" \
+    CLOWDER_SPACE="5bdc8f174f0cb2fdaaf3148e"

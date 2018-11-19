@@ -1,13 +1,8 @@
-FROM terraref/terrautils:1.2
+FROM terraref/terrautils:1.4
 MAINTAINER Max Burnette <mburnet2@illinois.edu>
 
 # Install any programs needed
-RUN useradd -u 49044 extractor \
-    && mkdir -p /home/extractor/sites/ua-mac/raw_data \
-    && mkdir -p /home/extractor/sites/ua-mac/Level_1/scanner3DTop \
-    && mkdir -p /home/extractor/sites/ua-mac/Level_1/scanner3DTop_mergedlas \
-    && mkdir -p /home/extractor/sites/ua-mac/Level_1/scanner3DTop_heightmap \
-    && chown -R extractor /home/extractor
+RUN useradd -u 49044 extractor
 
 # Install laser3d science package
 RUN pip install laspy plyfile terraref-laser3d
