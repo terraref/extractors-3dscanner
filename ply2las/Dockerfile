@@ -10,6 +10,9 @@ RUN pip install laspy plyfile terraref-laser3d
 # command to run when starting docker
 COPY entrypoint.sh extractor_info.json *.py /home/extractor/
 
+# Change permissions for writing temporary convert.py file
+RUN chown -R extractor /home/extractor
+
 USER extractor
 ENTRYPOINT ["/home/extractor/entrypoint.sh"]
 CMD ["extractor"]
