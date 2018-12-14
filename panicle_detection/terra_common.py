@@ -20,6 +20,7 @@ SE_utm = utm.from_latlon(SE_latlon[0], SE_latlon[1])
 lng_shift = 0.000020308287
 lat_shift = 0.000015258894
 
+
 "(latitude, longitude) of SE corner (positions are + in NW direction)"
 ZERO_ZERO = (33.0745,-111.97475)
 
@@ -52,6 +53,7 @@ class CoordinateConverter(object):
         
         plot_row = 0
         plot_col = 0
+
         if not self.queryStatus:
             return plot_row, plot_col
         
@@ -83,12 +85,13 @@ class CoordinateConverter(object):
                 if (y > ymin) and (y <= ymax):
                     plot_col = j + 1
                     break
-        
+
         return plot_row, plot_col
     
     
     def plotNum_to_fieldPartition(self, plotNum):
         "Converts plot number to field partition"
+
         plot_row = 0
         plot_col = 0
         if not self.queryStatus:
@@ -139,7 +142,7 @@ class CoordinateConverter(object):
         plotNum = 0
         if not self.queryStatus:
             return plotNum
-        
+
         x_param = float(fov) / float(x_width)
         y_param = float(scan_d) / float(y_width)
         
@@ -345,7 +348,7 @@ class CoordinateConverter(object):
             self.np_bounds[range_][col][3] = ymax
         
         return
-    
+
 
 def load_json(meta_path):
     try:

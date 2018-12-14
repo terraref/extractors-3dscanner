@@ -132,7 +132,9 @@ def full_day_gen_hist(ply_path, json_path, out_path, model_file_path):
     
     if not os.path.isdir(out_path):
         os.makedirs(out_path)
-        
+
+    model_file_path = '/media/zli/data/VOC/models/saved_model_s2_3dPanicle/faster_rcnn_100000.h5'
+
     detector = load_model(model_file_path)
     
     list_dirs = os.walk(ply_path)
@@ -175,8 +177,8 @@ def process_one_directory(p_path, j_path, o_path, detector):
     pimgs = glob(p_img_suffix)
     if len(pimgs) == 0:
         return
-    
-    ply_suffix = os.path.join(p_path, '*west_0.ply')    
+
+    ply_suffix = os.path.join(p_path, '*west_0.ply')
     plys = glob(ply_suffix)
     if len(plys) == 0:
         return
@@ -239,7 +241,9 @@ def panicle_detection_from_laser(g_img_path, ply_path, json_path, p_img_path, ou
     gIm = Image.open(g_img_path)
     
     ply_data = PlyData.read(ply_path)
-    
+
+    #src_data = PlyData.read(ply_path)
+
     x_inds, y_inds, img_vec = crop_reflectance_image(g_img)
     
     
@@ -265,13 +269,14 @@ def panicle_detection_from_laser(g_img_path, ply_path, json_path, p_img_path, ou
     merged_boxes = []
     for (box, mask_img) in zip(init_boxes, mask_vec):
         localP = fetch_points_with_mask(gIm, ply_data, box, mask_img, p_img)
+
         if len(localP)<5:
             continue
         new_points, centerpoint = clustering_points(localP)
         centerPoints.append(centerpoint)
         maskedPoints.append(new_points)
         merged_boxes.append(box)
-        
+
     merged_boxes, centerPoints, maskedPoints = combine_close_boxes(merged_boxes, centerPoints, maskedPoints)
     #merged_boxes, centerPoints, maskedPoints, vec_scores, vec_nor_par = split_separated_panicles(merged_boxes, centerPoints, maskedPoints, histPlot_dir)
     #merged_boxes, centerPoints, maskedPoints = combine_close_boxes(merged_boxes, centerPoints, maskedPoints)
@@ -299,12 +304,13 @@ def panicle_detection_from_laser(g_img_path, ply_path, json_path, p_img_path, ou
         save_points(new_points, out_png_file, 5)
         '''
         p_ind += 1
-            
+
     #plot_boundary_list = sort_box_range(plotList, boxList)
     save_box_image(gIm, merged_boxes, out_dir, plot_img_dir)
     save_data_to_file(plotList, volumeList, countingList, areaList, densityList, out_dir)
     
     return
+
 
 def save_box_image(gImage, merged_boxes, out_dir, plot_img_dir):
     
@@ -315,12 +321,12 @@ def save_box_image(gImage, merged_boxes, out_dir, plot_img_dir):
         #pt_ratio = (scores[0]/pars[0])/(scores[2]/pars[2])
         #cv2.putText(im2show, '%0.3f' % (pt_ratio), (box[0], box[1] + 20), cv2.FONT_HERSHEY_PLAIN,
         #                    2.0, (0, 0, 255), thickness=2)
-        
+
     if SAVE_IMG:
         cv2.imwrite(os.path.join(out_dir, 'merged.jpg'), im2show)
     '''
     base_name = os.path.basename(out_dir)
-    
+
     
     # save plot images
     plot_list = [i for i in range(257, 289)]
@@ -368,7 +374,7 @@ def sort_box_range(plotList, boxList):
 
 
 def point_2_plotNum(point, xShift, yShift):
-    
+
     plotNum = -1
     
     x = point[0] + xShift
@@ -522,14 +528,14 @@ def fetch_points_with_mask(gImg, ply_data, box, mask_img, p_img):
         tInd = np.intersect1d(gIndex[0], pIndex[0])
     
     nonZeroSize = tInd.size
-        
+
     pointSize = ply_data.elements[0].count
     
     if nonZeroSize != pointSize:
         return []
     
     gIndexImage = np.zeros(gWid*gHei)
-    
+
     gIndexImage[tInd] = np.arange(1,pointSize+1)
     
     gIndexImage_ = np.reshape(gIndexImage, (-1, gWid))

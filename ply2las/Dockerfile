@@ -1,54 +1,17 @@
-FROM pdal/pdal:1.5
+FROM terraref/terrautils:1.4
 MAINTAINER Max Burnette <mburnet2@illinois.edu>
 
 # Install any programs needed
-RUN useradd -u 49044 extractor \
-    && mkdir -p /home/extractor/sites/ua-mac/raw_data \
-    && mkdir -p /home/extractor/sites/ua-mac/Level_1/scanner3DTop \
-    && mkdir -p /home/extractor/sites/ua-mac/Level_1/scanner3DTop_mergedlas \
-    && chown -R extractor /home/extractor \
-    # Requirements for terrautils
-    && apt-get -q -y update \
-    && apt-get install -y --no-install-recommends build-essential \
-        software-properties-common \
-        gcc make wget byacc \
-        libpng-dev \
-        libjpeg8-dev \
-        libfreetype6-dev \
-        libnetcdf-dev \
-        libhdf5-dev \
-        libblas-dev \
-        liblapack-dev \
-        libatlas-base-dev \
-        libgdal-dev \
-        python-dev \
-        python-tk \
-    # Requirements for pyclowder
-        netcat \
-        python \
-        python-pip \
-        git \
-    && add-apt-repository ppa:ubuntugis/ubuntugis-unstable \
-    && apt-get -q -y update \
-    && apt-get install -y python-gdal \
-    && pip install --upgrade setuptools \
-    && rm -rf /var/lib/apt/lists/*
+RUN useradd -u 49044 extractor
 
-# Install pyclowder
-RUN cd /home/extractor \
-    && git clone https://opensource.ncsa.illinois.edu/bitbucket/scm/cats/pyclowder2.git \
-    && pip install --upgrade -r pyclowder2/requirements.txt \
-    && pip install --upgrade /home/extractor/pyclowder2
-
-# Install terrautils
-RUN cd /home/extractor \
-    && git clone https://github.com/terraref/terrautils.git \
-    && pip install --upgrade -r terrautils/requirements.txt \
-    && pip install --upgrade /home/extractor/terrautils \
-    && pip install laspy
+# Install laser3d science package
+RUN pip install laspy plyfile terraref-laser3d
 
 # command to run when starting docker
 COPY entrypoint.sh extractor_info.json *.py /home/extractor/
+
+# Change permissions for writing temporary convert.py file
+RUN chown -R extractor /home/extractor
 
 USER extractor
 ENTRYPOINT ["/home/extractor/entrypoint.sh"]
@@ -60,6 +23,6 @@ CMD ["extractor"]
 # executed by entrypoint.sh
 ENV RABBITMQ_EXCHANGE="terra" \
     RABBITMQ_VHOST="%2F" \
-    RABBITMQ_QUEUE="terra.ply2las" \
-    RABBITMQ_URI="" \
-    MAIN_SCRIPT="terra_ply2las.py"
+    RABBITMQ_QUEUE="terra.3dscanner.ply2las" \
+    MAIN_SCRIPT="terra_ply2las.py" \
+    CLOWDER_SPACE="5bdc8f174f0cb2fdaaf3148e"
