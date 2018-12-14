@@ -110,9 +110,7 @@ class Ply2HeightEstimation(TerrarefExtractor):
             fileIdList.append(f['id'])
         # Format time properly, adding UTC if missing from Danforth timestamp
         ctime = calculate_scan_time(metadata)
-        # TODO where to get the highest ?
         dpmetadata = {
-            "max_height": np.max(highest),
             "source": host+"datasets/"+resource['id'],
             "file_ids": ",".join(fileIdList)
         }
@@ -122,8 +120,7 @@ class Ply2HeightEstimation(TerrarefExtractor):
 
         # Tell Clowder this is completed so subsequent file updates don't daisy-chain
         extmd = build_metadata(host, self.extractor_info, resource['id'], {
-            "files_created": uploaded_file_ids,
-            "max_height": np.max(highest)}, 'dataset')
+            "files_created": uploaded_file_ids}, 'dataset')
         upload_metadata(connector, host, secret_key, resource['id'], extmd)
 
         self.end_message()
