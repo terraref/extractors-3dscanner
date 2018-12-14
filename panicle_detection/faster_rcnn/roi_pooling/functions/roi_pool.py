@@ -18,7 +18,7 @@ class RoIPoolFunction(Function):
         num_rois = rois.size()[0]
         output = torch.zeros(num_rois, num_channels, self.pooled_height, self.pooled_width)
         argmax = torch.IntTensor(num_rois, num_channels, self.pooled_height, self.pooled_width).zero_()
-        
+
         if True:
             is_cuda = features.is_cuda
         

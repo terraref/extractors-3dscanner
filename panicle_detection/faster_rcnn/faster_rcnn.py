@@ -197,6 +197,8 @@ class FasterRCNN(nn.Module):
         self.fc7 = FC(4096, 4096)
         self.score_fc = FC(4096, self.n_classes, relu=False)
         self.bbox_fc = FC(4096, self.n_classes * 4, relu=False)
+        
+        #self.model = nn.ModuleList(*self.layers)
 
         # loss
         self.cross_entropy = None

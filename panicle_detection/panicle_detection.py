@@ -4,7 +4,7 @@ Created on Aug 23, 2017
 @author: zli
 '''
 import cv2
-import sys, os, json
+import sys, os, json, argparse
 from glob import glob
 import numpy as np
 from PIL import Image
@@ -16,20 +16,57 @@ from panicle_data_integration import full_day_output_integrate, offset_choice, c
 from panicle_post_process import get_panicle_value, clustering_points, combine_close_boxes, mask_panicle_area, box_integrate
 from plyfile import PlyData, PlyElement
 import terra_common
+from datetime import date
     
 convt = terra_common.CoordinateConverter()
 SAVE_IMG = True
 
+def options():
+    
+    parser = argparse.ArgumentParser(description='Panicle detection from laser data',
+                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    
+    parser.add_argument("-m", "--model_path", help="model path")
+    parser.add_argument("-p", "--ply_dir", help="ply directory")
+    parser.add_argument("-j", "--json_dir", help="json directory")
+    parser.add_argument("-o", "--out_dir", help="output directory")
+    parser.add_argument("-y", "--year", help="specify which year to process")
+    parser.add_argument("-d", "--month", help="specify month")
+    parser.add_argument("-s", "--start_date", help="specify start date")
+    parser.add_argument("-e", "--end_date", help="specify end date")
+
+    args = parser.parse_args()
+
+    return args
+
 def main():
     
+    print("start...")
+    
+    args = options()
+    
+    cwd = os.getcwd()
+    
+    model_file_path = os.path.join(cwd, 'models', 'faster_rcnn_100000.h5')
+    p_path = os.path.join(cwd, 'data', '2016-09-27/2016-09-27__07-04-49-537')
+    o_path = os.path.join(cwd, 'result', '2016-09-27/2016-09-27__07-04-49-537')
+    detector = load_model(model_file_path)
+    q_flag = convt.bety_query('2017-04-27') # season testing
+    if not q_flag:
+        return
+    
+    process_one_directory(p_path, p_path, o_path, detector)
+    
+    #process_by_dates(args.ply_dir, args.json_dir, args.out_dir, args.year, args.month, args.start_date, args.end_date, args.model_path)
+    
+    '''
     in_dir = '/media/zli/data/Terra/sample_files/scanner3dTop/s2/'
     out_dir = '/media/zli/data/Terra/testing_output/panicle_output/s2_test_new'
     plot_dir = '/media/zli/data/Terra/testing_output/panicle_vis/s2_test'
-    
     #plot_data_visualization(out_dir, plot_dir, 'cnt_mean')
     #for i in range(257, 288):
     #    split_images(out_dir, plot_dir, '/media/zli/data/Terra/testing_output/plot_img_test', i)
-    
+    model_file_path = '/media/zli/data/VOC/models/saved_model_s2_3dPanicle/faster_rcnn_100000.h5'
     
     list_dirs = os.listdir(in_dir)
     start_ind = 18
@@ -40,20 +77,64 @@ def main():
         ind += 1
         if ind < start_ind:
             continue
-        full_day_gen_hist(i_path, i_path, o_path)
+        full_day_gen_hist(i_path, i_path, o_path, model_file_path)
         if os.path.isdir(o_path):
             full_day_output_integrate(o_path, o_path)
     
+    '''
+    return
+
+def process_by_dates(ply_parent, json_parent, out_parent, str_year, str_month, str_start_date, str_end_date, model_file_path):
+    
+    for day in range(int(str_start_date), int(str_end_date)+1):
+        target_date = date(int(str_year), int(str_month), day)
+        str_date = target_date.isoformat()
+        print(str_date)
+        ply_path = os.path.join(ply_parent, str_date)
+        json_path = os.path.join(json_parent, str_date)
+        out_path = os.path.join(out_parent, str_date)
+        
+        if not os.path.isdir(ply_path):
+            print('ply miss:'+ply_path)
+            continue
+        if not os.path.isdir(json_path):
+            print('json miss:'+json_path)
+            continue
+        
+        try:
+            q_flag = convt.bety_query(str_date)
+            if not q_flag:
+                print('Bety query failed')
+                continue
+            
+            full_day_gen_hist(ply_path, json_path, out_path, model_file_path)
+            
+            if os.path.isdir(out_path):
+                full_day_output_integrate(out_path, out_path)
+                
+        except Exception as ex:
+            fail(str_date +str(ex))
     
     return
 
 
-def full_day_gen_hist(ply_path, json_path, out_path):
+def full_day_gen_hist(ply_path, json_path, out_path, model_file_path):
+    
+    str_date = os.path.basename(ply_path)
+    
+    try:
+        q_flag = convt.bety_query(str_date)
+        if not q_flag:
+            print('Bety query failed')
+            return
+    except Exception as ex:
+        fail(str_date +str(ex))
     
     if not os.path.isdir(out_path):
         os.makedirs(out_path)
-        
+
     model_file_path = '/media/zli/data/VOC/models/saved_model_s2_3dPanicle/faster_rcnn_100000.h5'
+
     detector = load_model(model_file_path)
     
     list_dirs = os.walk(ply_path)
@@ -80,7 +161,7 @@ def full_day_gen_hist(ply_path, json_path, out_path):
 def process_one_directory(p_path, j_path, o_path, detector):
     
     if not os.path.isdir(o_path):
-        os.mkdir(o_path)
+        os.makedirs(o_path)
         
     json_suffix = os.path.join(j_path, '*_metadata.json')    
     jsons = glob(json_suffix)
@@ -96,8 +177,8 @@ def process_one_directory(p_path, j_path, o_path, detector):
     pimgs = glob(p_img_suffix)
     if len(pimgs) == 0:
         return
-    
-    ply_suffix = os.path.join(j_path, '*west_0.ply')    
+
+    ply_suffix = os.path.join(p_path, '*west_0.ply')
     plys = glob(ply_suffix)
     if len(plys) == 0:
         return
@@ -160,9 +241,9 @@ def panicle_detection_from_laser(g_img_path, ply_path, json_path, p_img_path, ou
     gIm = Image.open(g_img_path)
     
     ply_data = PlyData.read(ply_path)
-    
+
     #src_data = PlyData.read(ply_path)
-    
+
     x_inds, y_inds, img_vec = crop_reflectance_image(g_img)
     
     
@@ -173,24 +254,29 @@ def panicle_detection_from_laser(g_img_path, ply_path, json_path, p_img_path, ou
         dets, scores, im2show = object_detection(detector, img)
         if len(dets)==0:
             continue
-        cv2.imwrite(os.path.join(crop_img_dir, str_time + '_' + str(x_ind)+'_'+str(y_ind)+'.jpg'), im2show)
+        
+        if SAVE_IMG:
+            cv2.imwrite(os.path.join(crop_img_dir, str_time + '_' + str(x_ind)+'_'+str(y_ind)+'.jpg'), im2show)
         new_boxes = remap_box_coordinates(x_ind, y_ind, dets)
         saved_boxes.append(new_boxes)
         
     # box integrate
-    merged_boxes = box_integrate(saved_boxes)
-    mask_vec = mask_panicle_area(p_img, merged_boxes, detected_img_dir, g_img, str_time)
+    init_boxes = box_integrate(saved_boxes)
+    mask_vec = mask_panicle_area(p_img, init_boxes, detected_img_dir, g_img, str_time)
     
     centerPoints = []
     maskedPoints = []
-    for (box, mask_img) in zip(merged_boxes, mask_vec):
-        localP = fetch_points_with_mask(gIm, ply_data, box, mask_img)
+    merged_boxes = []
+    for (box, mask_img) in zip(init_boxes, mask_vec):
+        localP = fetch_points_with_mask(gIm, ply_data, box, mask_img, p_img)
+
         if len(localP)<5:
             continue
         new_points, centerpoint = clustering_points(localP)
         centerPoints.append(centerpoint)
         maskedPoints.append(new_points)
-        
+        merged_boxes.append(box)
+
     merged_boxes, centerPoints, maskedPoints = combine_close_boxes(merged_boxes, centerPoints, maskedPoints)
     #merged_boxes, centerPoints, maskedPoints, vec_scores, vec_nor_par = split_separated_panicles(merged_boxes, centerPoints, maskedPoints, histPlot_dir)
     #merged_boxes, centerPoints, maskedPoints = combine_close_boxes(merged_boxes, centerPoints, maskedPoints)
@@ -218,14 +304,15 @@ def panicle_detection_from_laser(g_img_path, ply_path, json_path, p_img_path, ou
         save_points(new_points, out_png_file, 5)
         '''
         p_ind += 1
-            
-    plot_boundary_list = sort_box_range(plotList, boxList)
-    save_box_image(gIm, merged_boxes, out_dir, plot_img_dir, plot_boundary_list)
+
+    #plot_boundary_list = sort_box_range(plotList, boxList)
+    save_box_image(gIm, merged_boxes, out_dir, plot_img_dir)
     save_data_to_file(plotList, volumeList, countingList, areaList, densityList, out_dir)
     
     return
 
-def save_box_image(gImage, merged_boxes, out_dir, plot_img_dir, plot_boundary_list):
+
+def save_box_image(gImage, merged_boxes, out_dir, plot_img_dir):
     
     im2show = np.copy(gImage)
     for box in merged_boxes :
@@ -234,10 +321,12 @@ def save_box_image(gImage, merged_boxes, out_dir, plot_img_dir, plot_boundary_li
         #pt_ratio = (scores[0]/pars[0])/(scores[2]/pars[2])
         #cv2.putText(im2show, '%0.3f' % (pt_ratio), (box[0], box[1] + 20), cv2.FONT_HERSHEY_PLAIN,
         #                    2.0, (0, 0, 255), thickness=2)
-        
-    cv2.imwrite(os.path.join(out_dir, 'merged.jpg'), im2show)
-    
+
+    if SAVE_IMG:
+        cv2.imwrite(os.path.join(out_dir, 'merged.jpg'), im2show)
+    '''
     base_name = os.path.basename(out_dir)
+
     
     # save plot images
     plot_list = [i for i in range(257, 289)]
@@ -251,7 +340,7 @@ def save_box_image(gImage, merged_boxes, out_dir, plot_img_dir, plot_boundary_li
         crop_img = im2show[int(y_range[0]):int(y_range[1]), :]
         out_img_path = os.path.join(plot_img_dir, base_name+'_'+str(plotNum)+'.jpg')
         cv2.imwrite(out_img_path, crop_img)
-    
+    '''
     return
 
 def sort_box_range(plotList, boxList):
@@ -285,28 +374,18 @@ def sort_box_range(plotList, boxList):
 
 
 def point_2_plotNum(point, xShift, yShift):
+
+    plotNum = -1
     
     x = point[0] + xShift
     y = point[1] + yShift
     
-    count = 0
+    plot_row, plot_col = convt.fieldPosition_to_fieldPartition(x, y)
     
-    plot_row = 0
-    plot_col = 0
-    for (ymin, ymax) in terra_common._y_row_s2:
-        count = count + 1
-        if y > ymin:
-            plot_col = count
-            break
-        
-    count = 0
-    for (xmin, xmax) in terra_common._x_range_s2:
-        count = count + 1
-        if (x > xmin) and (x <= xmax):
-            plot_row = 55 - count
-            
-            plotNum = convt.fieldPartition_to_plotNum_32(plot_row, plot_col)
-            break
+    if plot_row == 0:
+        return plotNum
+    
+    plotNum = convt.fieldPartition_to_plotNum(plot_row, plot_col)
     
     return plotNum
 
@@ -427,25 +506,37 @@ def fetch_points(gImg, ply_data, box):
     
     return localP
 
-def fetch_points_with_mask(gImg, ply_data, box, mask_img):
+def fetch_points_with_mask(gImg, ply_data, box, mask_img, p_img):
     
     mask_img = mask_img > 1
     
+    pHei, pWid = p_img.shape[:2]
+    
     [gWid, gHei] = gImg.size
     
-    pix = np.array(gImg).ravel()
+    if pWid == gWid:
+        pix = np.array(gImg).ravel()
+        gIndex = (np.where(pix>32))
+        tInd = gIndex[0]
+    else:
+        pPix = np.array(p_img)
+        pPix = pPix[:, 2:].ravel()
+        pIndex = (np.where(pPix != 0))
+        
+        gPix = np.array(gImg).ravel()
+        gIndex = (np.where(gPix>33))
+        tInd = np.intersect1d(gIndex[0], pIndex[0])
     
-    gIndex = (np.where(pix>32))
-    nonZeroSize = gIndex[0].size
-    
+    nonZeroSize = tInd.size
+
     pointSize = ply_data.elements[0].count
     
     if nonZeroSize != pointSize:
         return []
     
     gIndexImage = np.zeros(gWid*gHei)
-    
-    gIndexImage[gIndex[0]] = np.arange(1,pointSize+1)
+
+    gIndexImage[tInd] = np.arange(1,pointSize+1)
     
     gIndexImage_ = np.reshape(gIndexImage, (-1, gWid))
     
@@ -458,6 +549,9 @@ def fetch_points_with_mask(gImg, ply_data, box, mask_img):
     localP = ply_data.elements[0].data[localIndex-1]
     
     return localP
+
+def fail(reason):
+    print >> sys.stderr, reason
         
 
 if __name__ == "__main__":
