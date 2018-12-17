@@ -17,6 +17,7 @@ from terrautils.metadata import get_terraref_metadata
 from plyfile import PlyData, PlyElement
 import full_day_to_histogram
 import las_to_height
+#from terraref.laser3d import las_to_height
 
 
 class Ply2HeightEstimation(TerrarefExtractor):
