@@ -1,4 +1,4 @@
-FROM terraref/terrautils
+FROM terraref/terrautils:1.4
 MAINTAINER Max Burnette <mburnet2@illinois.edu>
 
 # Create user with necessary user ID for writing permissions on Roger
@@ -20,6 +20,6 @@ CMD ["extractor"]
 # executed by entrypoint.sh
 ENV RABBITMQ_EXCHANGE="terra" \
     RABBITMQ_VHOST="%2F" \
-    RABBITMQ_QUEUE="terra.scanner3DTop.plant_height" \
-    RABBITMQ_URI="" \
-    MAIN_SCRIPT="terra_plant_height.py"
+    RABBITMQ_QUEUE="terra.3dscanner.las2height" \
+    MAIN_SCRIPT="terra_las2height.py" \
+    CLOWDER_SPACE="5bdc8f174f0cb2fdaaf3148e"
