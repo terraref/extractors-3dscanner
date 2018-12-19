@@ -9,9 +9,9 @@ import numpy as np
 HIST_BIN_NUM = 500
 
 
-def las_to_height_distribution(in_file):
+def las_to_height_distribution(in_file, out_file):
     
-    
+
     zRange = [0, 5000] # depth scope of laser scanner, unit in mm
     zOffset = 10  # bin width of histogram, 10 mm for each bin
     scaleParam = 1000 # min unit in las might be 0.001 mm
@@ -24,20 +24,24 @@ def las_to_height_distribution(in_file):
     
     if (zData.size) == 0:
         return height_hist
-    
-    for i in range(0, HIST_BIN_NUM):
-        zmin = i * zOffset * scaleParam
-        zmax = (i+1) * zOffset * scaleParam
-        if i == 0:
-            zIndex = np.where(zData<zmax)
-        elif i == HIST_BIN_NUM-1:
-            zIndex = np.where(zData>zmin)
-        else:
-            zIndex = np.where((zData>zmin) & (zData<zmax))
-        num = len(zIndex[0])
-        height_hist[i] = num
-    
-    
+
+    with open("hist.csv", 'w') as out:
+        out.write("bin,range,pts\n")
+
+        for i in range(0, HIST_BIN_NUM):
+            zmin = i * zOffset * scaleParam
+            zmax = (i+1) * zOffset * scaleParam
+            if i == 0:
+                zIndex = np.where(zData<zmax)
+            elif i == HIST_BIN_NUM-1:
+                zIndex = np.where(zData>zmin)
+            else:
+                zIndex = np.where((zData>zmin) & (zData<zmax))
+            num = len(zIndex[0])
+            height_hist[i] = num
+
+            out.write("%s,%s,%s\n" % (i, "%s-%s" % (zmin, zmax), num))
+
     return height_hist
 
 def export_to_csv(out_file_path, hist_data):
