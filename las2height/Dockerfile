@@ -5,7 +5,7 @@ MAINTAINER Max Burnette <mburnet2@illinois.edu>
 RUN useradd -u 49044 extractor
 
 # Install laser3d science package
-RUN pip install laspy
+RUN pip install laspy terraref-laser3d
 
 # command to run when starting docker
 COPY entrypoint.sh extractor_info.json *.py /home/extractor/
