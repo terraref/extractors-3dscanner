@@ -23,11 +23,15 @@ class LAS2HeightEstimation(TerrarefExtractor):
 
     # Check whether dataset already has metadata
     def check_message(self, connector, host, secret_key, resource, parameters):
+        if "rulechecked" in parameters and parameters["rulechecked"]:
+            return CheckMessage.download
+
         if not is_latest_file(resource):
+            self.log_skip(resource, "not latest file")
             return CheckMessage.ignore
 
         # Check if we have 2 PLY files, but not an LAS file already
-        if not contains_required_files(resource, ['.las']):
+        if not contains_required_files(resource, ['_merged.las']):
             self.log_skip(resource, "missing required files")
             return CheckMessage.ignore
 
