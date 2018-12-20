@@ -39,7 +39,7 @@ class Ply2LasConverter(TerrarefExtractor):
                 # Make sure outputs properly exist
                 timestamp = resource['dataset_info']['name'].split(" - ")[1]
                 las = self.sensors.get_sensor_path(timestamp)
-                if file_exists(las):
+                if file_exists(las) and not self.overwrite:
                     self.log_skip(resource, "metadata v%s and outputs already exist" % self.extractor_info['version'])
                     return CheckMessage.ignore
             # Have TERRA-REF metadata, but not any from this extractor
@@ -97,12 +97,13 @@ class Ply2LasConverter(TerrarefExtractor):
             self.execute_threaded_conversion([east_ply, west_ply], out_las, terra_md_full)
 
             # Only upload the newly generated file to Clowder if it isn't already in dataset
-            found_in_dest = check_file_in_dataset(connector, host, secret_key, target_dsid, out_las, remove=self.overwrite)
-            if not found_in_dest or self.overwrite:
-                fileid = upload_to_dataset(connector, host, secret_key, target_dsid, out_las)
-                uploaded_file_ids.append(host + ("" if host.endswith("/") else "/") + "files/" + fileid)
-            self.created += 1
-            self.bytes += os.path.getsize(out_las)
+            if file_exists(out_las):
+                found_in_dest = check_file_in_dataset(connector, host, secret_key, target_dsid, out_las, remove=self.overwrite)
+                if not found_in_dest or self.overwrite:
+                    fileid = upload_to_dataset(connector, host, secret_key, target_dsid, out_las)
+                    uploaded_file_ids.append(host + ("" if host.endswith("/") else "/") + "files/" + fileid)
+                self.created += 1
+                self.bytes += os.path.getsize(out_las)
 
         # Tell Clowder this is completed so subsequent file updates don't daisy-chain
         extractor_md = build_metadata(host, self.extractor_info, target_dsid, {
