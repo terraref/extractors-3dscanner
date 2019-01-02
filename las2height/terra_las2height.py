@@ -115,8 +115,12 @@ class LAS2HeightEstimation(TerrarefExtractor):
         csv_file.write(','.join(map(str, trait_list)) + '\n')
         csv_file.close()
 
-        # Upload this CSV to Clowder
+        # Upload this CSV to Clowder if it isn't in there already
+        check_file_in_dataset(connector, host, secret_key, resource['id'], out_csv, remove=True)
         fileid = upload_to_dataset(connector, host, self.clowder_user, self.clowder_pass, resource['id'], out_csv)
+        uploaded_file_ids.append(host + ("" if host.endswith("/") else "/") + "files/" + fileid)
+        self.created += 1
+        self.bytes += os.path.getsize(out_csv)
 
         # Tell Clowder this is completed so subsequent file updates don't daisy-chain
         extractor_md = build_metadata(host, self.extractor_info, resource['id'], {
