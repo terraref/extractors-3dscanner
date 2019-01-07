@@ -16,7 +16,7 @@ from terraref.laser3d import las_to_height
 # TODO: Keep these in terrautils.bety instead
 def get_traits_table():
     # Compiled traits table
-    fields = ('local_datetime', 'canopy_cover', 'access_level', 'species', 'site',
+    fields = ('local_datetime', 'canopy_height', 'access_level', 'species', 'site',
               'citation_author', 'citation_year', 'citation_title', 'method')
     traits = {'local_datetime' : '',
               'canopy_height' : [],
@@ -26,7 +26,7 @@ def get_traits_table():
               'citation_author': '"Zongyang, Li"',
               'citation_year': '2016',
               'citation_title': 'Maricopa Field Station Data and Metadata',
-              'method': 'Canopy Height Estimation from Field Scanner Laser 3D scans'}
+              'method': 'Scanner 3d ply data to height'}
 
     return (fields, traits)
 
@@ -34,7 +34,7 @@ def get_traits_table():
 def generate_traits_list(traits):
     # compose the summary traits
     trait_list = [  traits['local_datetime'],
-                    traits['canopy_cover'],
+                    traits['canopy_height'],
                     traits['access_level'],
                     traits['species'],
                     traits['site'],
@@ -97,30 +97,32 @@ class LAS2HeightEstimation(TerrarefExtractor):
         (hist, maximum) = las_to_height(las_file, out_hist)
         self.log_info(resource, "maximum height found: %s" % maximum)
 
-        found_in_dest = check_file_in_dataset(connector, host, secret_key, resource['id'], out_hist, remove=self.overwrite)
-        if not found_in_dest or self.overwrite:
-            fileid = upload_to_dataset(connector, host, self.clowder_user, self.clowder_pass, resource['id'], out_hist)
-            uploaded_file_ids.append(host + ("" if host.endswith("/") else "/") + "files/" + fileid)
-        self.created += 1
-        self.bytes += os.path.getsize(out_hist)
+        if file_exists(out_hist):
+            found_in_dest = check_file_in_dataset(connector, host, secret_key, resource['id'], out_hist, remove=self.overwrite)
+            if not found_in_dest or self.overwrite:
+                fileid = upload_to_dataset(connector, host, self.clowder_user, self.clowder_pass, resource['id'], out_hist)
+                uploaded_file_ids.append(host + ("" if host.endswith("/") else "/") + "files/" + fileid)
+            self.created += 1
+            self.bytes += os.path.getsize(out_hist)
 
         self.log_info(resource, "Writing BETY CSV to %s" % out_csv)
         csv_file = open(out_csv, 'w')
         (fields, traits) = get_traits_table()
         csv_file.write(','.join(map(str, fields)) + '\n')
-        traits['canopy_cover'] = str(maximum)
+        traits['canopy_height'] = str(maximum)
         traits['site'] = plotname
         traits['local_datetime'] = date+"T12:00:00"
         trait_list = generate_traits_list(traits)
         csv_file.write(','.join(map(str, trait_list)) + '\n')
         csv_file.close()
 
-        # Upload this CSV to Clowder if it isn't in there already
-        check_file_in_dataset(connector, host, secret_key, resource['id'], out_csv, remove=True)
-        fileid = upload_to_dataset(connector, host, self.clowder_user, self.clowder_pass, resource['id'], out_csv)
-        uploaded_file_ids.append(host + ("" if host.endswith("/") else "/") + "files/" + fileid)
-        self.created += 1
-        self.bytes += os.path.getsize(out_csv)
+        if file_exists(out_csv):
+            # Upload this CSV to Clowder if it isn't in there already
+            check_file_in_dataset(connector, host, secret_key, resource['id'], out_csv, remove=True)
+            fileid = upload_to_dataset(connector, host, self.clowder_user, self.clowder_pass, resource['id'], out_csv)
+            uploaded_file_ids.append(host + ("" if host.endswith("/") else "/") + "files/" + fileid)
+            self.created += 1
+            self.bytes += os.path.getsize(out_csv)
 
         # Tell Clowder this is completed so subsequent file updates don't daisy-chain
         extractor_md = build_metadata(host, self.extractor_info, resource['id'], {
