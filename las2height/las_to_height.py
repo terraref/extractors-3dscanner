@@ -44,6 +44,28 @@ def las_to_height_distribution(in_file, out_file):
 
     return height_hist
 
+def las_to_height_distribution_optimize(in_file):
+    
+    
+    zOffset = 10  # bin width of histogram, 10 mm for each bin
+    scaleParam = 1000 # min unit in las might be 0.001 mm
+    
+    height_hist = np.zeros(HIST_BIN_NUM)
+    
+    las_handle = File(in_file)
+    
+    zData = las_handle.Z
+    
+    if (zData.size) == 0:
+        return height_hist
+    
+    
+    zVal = zData/(zOffset*scaleParam)
+        
+    height_hist = np.histogram(zVal, bins=range(-1, HIST_BIN_NUM), normed=False)[0]
+    
+    return height_hist
+
 def export_to_csv(out_file_path, hist_data):
     
     np.savetxt(out_file_path, hist_data, delimiter=',')
