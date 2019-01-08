@@ -10,7 +10,7 @@ RUN pip install laspy terraref-laser3d
 # command to run when starting docker
 COPY entrypoint.sh extractor_info.json *.py /home/extractor/
 
-#USER extractor
+USER extractor
 ENTRYPOINT ["/home/extractor/entrypoint.sh"]
 CMD ["extractor"]
 
