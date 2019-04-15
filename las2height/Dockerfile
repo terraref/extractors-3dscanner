@@ -1,16 +1,16 @@
-FROM terraref/terrautils
+FROM terraref/terrautils:1.4
 MAINTAINER Max Burnette <mburnet2@illinois.edu>
 
-# Create user with necessary user ID for writing permissions on Roger
-#RUN useradd -u 49044 extractor \
-#    && mkdir -p /home/extractor/sites/ua-mac/raw_data \
-#    && mkdir -p /home/extractor/sites/ua-mac/Level_1/scanner3DTop_plant_height \
-#    && chown -R extractor /home/extractor
+# Install any programs needed
+RUN useradd -u 49044 extractor
+
+# Install laser3d science package
+RUN pip install laspy terraref-laser3d
 
 # command to run when starting docker
 COPY entrypoint.sh extractor_info.json *.py /home/extractor/
 
-#USER extractor
+USER extractor
 ENTRYPOINT ["/home/extractor/entrypoint.sh"]
 CMD ["extractor"]
 
@@ -20,6 +20,6 @@ CMD ["extractor"]
 # executed by entrypoint.sh
 ENV RABBITMQ_EXCHANGE="terra" \
     RABBITMQ_VHOST="%2F" \
-    RABBITMQ_QUEUE="terra.scanner3DTop.plant_height" \
-    RABBITMQ_URI="" \
-    MAIN_SCRIPT="terra_plant_height.py"
+    RABBITMQ_QUEUE="terra.3dscanner.las2height" \
+    MAIN_SCRIPT="terra_las2height.py" \
+    CLOWDER_SPACE="5bdc8f174f0cb2fdaaf3148e"
