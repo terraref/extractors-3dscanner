@@ -6,7 +6,7 @@ import subprocess
 
 from pyclowder.utils import CheckMessage
 from pyclowder.files import upload_to_dataset
-from pyclowder.datasets import upload_metadata, download_metadata, remove_metadata, submit_extraction
+from pyclowder.datasets import upload_metadata, download_metadata, remove_metadata
 from terrautils.metadata import get_terraref_metadata, get_extractor_metadata, get_season_and_experiment
 from terrautils.extractors import TerrarefExtractor, is_latest_file, contains_required_files, \
     build_dataset_hierarchy_crawl, build_metadata, load_json_file, file_exists, check_file_in_dataset
@@ -45,8 +45,7 @@ class Ply2LasConverter(TerrarefExtractor):
             # Have TERRA-REF metadata, but not any from this extractor
             return CheckMessage.download
         else:
-            self.log_error(resource, "no terraref metadata found; sending to cleaner")
-            submit_extraction(connector, host, secret_key, resource['id'], "terra.metadata.cleaner")
+            self.log_skip(resource, "no terraref metadata found")
             return CheckMessage.ignore
 
     def process_message(self, connector, host, secret_key, resource, parameters):

@@ -3,21 +3,27 @@
 import os
 import json
 import subprocess
+import numpy as np
+from PIL import Image
+from plyfile import PlyData, PlyElement
 
 from pyclowder.utils import CheckMessage
 from pyclowder.files import upload_to_dataset
-from pyclowder.datasets import upload_metadata, download_metadata, remove_metadata, submit_extraction
+from pyclowder.datasets import upload_metadata, download_metadata, remove_metadata
 from terrautils.metadata import get_terraref_metadata, get_extractor_metadata, get_season_and_experiment
 from terrautils.extractors import TerrarefExtractor, is_latest_file, contains_required_files, \
     build_dataset_hierarchy_crawl, build_metadata, load_json_file, file_exists, check_file_in_dataset
+from terrautils.spatial import geom_from_metadata
+
+import leafAngleDistribution as lad
 
 
-class Ply2LasConverter(TerrarefExtractor):
+class Ply2LeafAngle(TerrarefExtractor):
     def __init__(self):
-        super(Ply2LasConverter, self).__init__()
+        super(Ply2LeafAngle, self).__init__()
 
         # parse command line and load default logging configuration
-        self.setup(sensor="laser3d_las")
+        self.setup(sensor="laser3d_leafangle")
 
     def check_message(self, connector, host, secret_key, resource, parameters):
         if "rulechecked" in parameters and parameters["rulechecked"]:
@@ -45,24 +51,30 @@ class Ply2LasConverter(TerrarefExtractor):
             # Have TERRA-REF metadata, but not any from this extractor
             return CheckMessage.download
         else:
-            self.log_error(resource, "no terraref metadata found; sending to cleaner")
-            submit_extraction(connector, host, secret_key, resource['id'], "terra.metadata.cleaner")
+            self.log_skip(resource, "no terraref metadata found")
             return CheckMessage.ignore
 
     def process_message(self, connector, host, secret_key, resource, parameters):
         self.start_message(resource)
 
         # Get PLY files and metadata
-        east_ply, west_ply, terra_md_full = None, None, None
+        west_ply, west_g_png, west_p_png, terra_md_full = None, None, None, None
         for p in resource['local_paths']:
             if p.endswith('_dataset_metadata.json'):
                 all_dsmd = load_json_file(p)
                 terra_md_full = get_terraref_metadata(all_dsmd, "scanner3DTop")
-            elif p.endswith("east_0.ply"):
-                east_ply = p
             elif p.endswith("west_0.ply"):
                 west_ply = p
-        if None in [east_ply, west_ply, terra_md_full]:
+        if west_ply:
+            # Must locate PNG files in another directory (not included in dataset)
+            seek_dir = os.path.dirname(west_ply).replace("Level_1", "raw_data")
+            contents = os.listdir(seek_dir)
+            for f in contents:
+                if f.endswith("-west_0_g.png"):
+                    west_g_png = os.path.join(seek_dir, f)
+                elif f.endswith("-west_0_p.png"):
+                    west_p_png = os.path.join(seek_dir, f)
+        if None in [west_ply, west_g_png, west_p_png, terra_md_full]:
             raise ValueError("could not locate all files & metadata in processing")
 
         timestamp = resource['dataset_info']['name'].split(" - ")[1]
@@ -80,7 +92,21 @@ class Ply2LasConverter(TerrarefExtractor):
                                                     timestamp[:4], timestamp[5:7], timestamp[8:10],
                                                     leaf_ds_name=self.sensors.get_display_name()+' - '+timestamp)
         out_las = self.sensors.create_sensor_path(timestamp)
+        out_dir = os.path.dirname(out_las)
         uploaded_file_ids = []
+
+        # Extract position and y offset from metadata
+        (gantry_x, gantry_y, gantry_z, cambox_x, cambox_y, cambox_z, fov_x, fov_y) = geom_from_metadata(terra_md_full)
+        position = (float(gantry_x) + float(cambox_x), float(gantry_y), float(gantry_z))
+        scandirection = int(terra_md_full['sensor_variable_metadata']['scan_direction'])
+        y_offset = -25.711 if scandirection == 0 else -3.60
+
+        lad.create_angle_data(out_dir, west_ply, west_g_png, west_p_png, position, y_offset)
+
+
+
+
+
 
         # Attach LemnaTec source metadata to Level_1 product
         self.log_info(resource, "uploading LemnaTec metadata to ds [%s]" % target_dsid)
@@ -116,16 +142,6 @@ class Ply2LasConverter(TerrarefExtractor):
 
         self.end_message(resource)
 
-    def execute_threaded_conversion(self, ply_list, out_las, md):
-        """Create a small temporary py file and run in a subprocess call to avoid timeout issue."""
-        with open("convert.py", 'w') as scriptfile:
-            scriptfile.write("import json\n")
-            scriptfile.write("import terraref.laser3d\n")
-            scriptfile.write("terraref.laser3d.generate_las_from_ply("+str(ply_list)+", '"+out_las+"', "+
-                             json.dumps(md).replace("true", "True")+")")
-
-        subprocess.call(["python convert.py"], shell=True)
-
 if __name__ == "__main__":
-    extractor = Ply2LasConverter()
+    extractor = Ply2LeafAngle()
     extractor.start()
