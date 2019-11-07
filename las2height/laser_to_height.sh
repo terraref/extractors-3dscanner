@@ -1,1 +1,0 @@
-python full_day_to_histogram.py -m date -p /projects/arpae/terraref/sites/ua-mac/Level_1/scanner3DTop/ -j /projects/arpae/terraref/sites/ua-mac/raw_data/scanner3DTop/ -o output_dir -y 2017 -d 6 -s 1 -e 10
